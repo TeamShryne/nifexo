@@ -1,0 +1,66 @@
+name: Android Debug Fast Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+
+concurrency:
+  group: android-debug-fast-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-debug-fast:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+
+      - name: Set up Flutter with cache
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+          cache-key: flutter-fast-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+
+      - name: Cache Dart and Android intermediates
+        uses: actions/cache@v4
+        with:
+          path: |
+            .dart_tool
+            android/.gradle
+          key: fast-build-${{ runner.os }}-${{ hashFiles('pubspec.lock', 'android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            fast-build-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Precache Android artifacts
+        run: flutter precache --android
+
+      - name: Build debug APK
+        run: flutter build apk --debug
+
+      - name: Upload fast debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: nifexo-android-debug-fast-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
