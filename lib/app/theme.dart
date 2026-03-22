@@ -13,9 +13,9 @@ ThemeData buildNifexoTheme({required Brightness brightness}) {
         : const Color(0xFFF5F7F3),
     appBarTheme: AppBarTheme(
       centerTitle: false,
-      backgroundColor: Colors.transparent,
+      backgroundColor: scheme.surface,
       foregroundColor: isDark ? Colors.white : const Color(0xFF0F1720),
-      surfaceTintColor: Colors.transparent,
+      surfaceTintColor: scheme.surfaceTint,
       elevation: 0,
     ),
     cardTheme: CardThemeData(

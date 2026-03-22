@@ -8,6 +8,8 @@ enum MarkdownBlockType {
   checklist,
   quote,
   codeBlock,
+  mathBlock,
+  table,
   divider,
 }
 
@@ -17,10 +19,16 @@ class MarkdownBlock {
     this.text = '',
     this.items = const [],
     this.checkedItems = const [],
+    this.meta = '',
+    this.tableHeaders = const [],
+    this.tableRows = const [],
   });
 
   final MarkdownBlockType type;
   final String text;
   final List<String> items;
   final List<bool> checkedItems;
+  final String meta;
+  final List<String> tableHeaders;
+  final List<List<String>> tableRows;
 }

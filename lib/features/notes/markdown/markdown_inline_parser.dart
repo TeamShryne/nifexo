@@ -1,29 +1,63 @@
-import 'package:flutter/material.dart';
+class MarkdownInlineNode {
+  const MarkdownInlineNode({
+    required this.text,
+    this.isBold = false,
+    this.isItalic = false,
+    this.isStrikethrough = false,
+    this.isInlineCode = false,
+    this.isInlineMath = false,
+    this.linkUrl,
+  });
+
+  final String text;
+  final bool isBold;
+  final bool isItalic;
+  final bool isStrikethrough;
+  final bool isInlineCode;
+  final bool isInlineMath;
+  final String? linkUrl;
+}
 
 class MarkdownInlineParser {
   const MarkdownInlineParser();
 
-  List<InlineSpan> parse(String text, TextStyle? baseStyle, Color linkColor) {
-    final spans = <InlineSpan>[];
+  List<MarkdownInlineNode> parse(String text) {
+    final nodes = <MarkdownInlineNode>[];
     var index = 0;
     final buffer = StringBuffer();
 
     void flush() {
       if (buffer.isNotEmpty) {
-        spans.add(TextSpan(text: buffer.toString(), style: baseStyle));
+        nodes.add(MarkdownInlineNode(text: buffer.toString()));
         buffer.clear();
       }
     }
 
     while (index < text.length) {
+      if (text.startsWith('***', index)) {
+        final end = text.indexOf('***', index + 3);
+        if (end != -1) {
+          flush();
+          nodes.add(
+            MarkdownInlineNode(
+              text: text.substring(index + 3, end),
+              isBold: true,
+              isItalic: true,
+            ),
+          );
+          index = end + 3;
+          continue;
+        }
+      }
+
       if (text.startsWith('**', index)) {
         final end = text.indexOf('**', index + 2);
         if (end != -1) {
           flush();
-          spans.add(
-            TextSpan(
+          nodes.add(
+            MarkdownInlineNode(
               text: text.substring(index + 2, end),
-              style: baseStyle?.copyWith(fontWeight: FontWeight.w700),
+              isBold: true,
             ),
           );
           index = end + 2;
@@ -35,12 +69,10 @@ class MarkdownInlineParser {
         final end = text.indexOf('~~', index + 2);
         if (end != -1) {
           flush();
-          spans.add(
-            TextSpan(
+          nodes.add(
+            MarkdownInlineNode(
               text: text.substring(index + 2, end),
-              style: baseStyle?.copyWith(
-                decoration: TextDecoration.lineThrough,
-              ),
+              isStrikethrough: true,
             ),
           );
           index = end + 2;
@@ -52,10 +84,10 @@ class MarkdownInlineParser {
         final end = text.indexOf('_', index + 1);
         if (end != -1) {
           flush();
-          spans.add(
-            TextSpan(
+          nodes.add(
+            MarkdownInlineNode(
               text: text.substring(index + 1, end),
-              style: baseStyle?.copyWith(fontStyle: FontStyle.italic),
+              isItalic: true,
             ),
           );
           index = end + 1;
@@ -67,13 +99,25 @@ class MarkdownInlineParser {
         final end = text.indexOf('`', index + 1);
         if (end != -1) {
           flush();
-          spans.add(
-            TextSpan(
+          nodes.add(
+            MarkdownInlineNode(
               text: text.substring(index + 1, end),
-              style: baseStyle?.copyWith(
-                fontFamily: 'monospace',
-                backgroundColor: Colors.black.withValues(alpha: 0.08),
-              ),
+              isInlineCode: true,
+            ),
+          );
+          index = end + 1;
+          continue;
+        }
+      }
+
+      if (text[index] == r'$') {
+        final end = text.indexOf(r'$', index + 1);
+        if (end != -1) {
+          flush();
+          nodes.add(
+            MarkdownInlineNode(
+              text: text.substring(index + 1, end),
+              isInlineMath: true,
             ),
           );
           index = end + 1;
@@ -91,13 +135,10 @@ class MarkdownInlineParser {
             openParen == closeBracket + 1 &&
             closeParen != -1) {
           flush();
-          spans.add(
-            TextSpan(
+          nodes.add(
+            MarkdownInlineNode(
               text: text.substring(index + 1, closeBracket),
-              style: baseStyle?.copyWith(
-                color: linkColor,
-                decoration: TextDecoration.underline,
-              ),
+              linkUrl: text.substring(openParen + 1, closeParen),
             ),
           );
           index = closeParen + 1;
@@ -110,6 +151,6 @@ class MarkdownInlineParser {
     }
 
     flush();
-    return spans;
+    return nodes;
   }
 }

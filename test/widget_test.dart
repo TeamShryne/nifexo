@@ -66,11 +66,11 @@ void main() {
     await tester.tap(find.text('Plan'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Initial text'), findsOneWidget);
     expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.edit_outlined));
     await tester.pumpAndSettle();
+    expect(find.text('Initial text'), findsOneWidget);
     await tester.enterText(
       find.byKey(const ValueKey('note_content_field')),
       'Updated text',

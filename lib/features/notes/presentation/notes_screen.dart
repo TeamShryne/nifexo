@@ -230,55 +230,50 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         : _titleController.text.trim();
     final contentText = _contentController.text.trim();
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_isNew ? 'New Note' : 'Note'),
-        actions: [
-          if (_isEditing)
+    if (_isEditing) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(_isNew ? 'New Note' : 'Edit Note'),
+          actions: [
             IconButton(
               onPressed: _openTagsModal,
               icon: const Icon(Icons.sell_outlined),
               tooltip: 'Tags',
             ),
-          if (!_isEditing)
-            IconButton(
-              onPressed: () {
-                setState(() {
-                  _isEditing = true;
-                });
-              },
-              icon: const Icon(Icons.edit_outlined),
-              tooltip: 'Edit',
-            ),
-          TextButton(onPressed: _save, child: const Text('Save')),
-        ],
-      ),
-      body: SafeArea(
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 180),
-          child: _isEditing
-              ? _NoteEditView(
-                  key: const ValueKey('edit'),
-                  titleController: _titleController,
-                  contentController: _contentController,
-                  tags: _tags,
-                  isPreviewing: _isPreviewing,
-                  onPreviewChanged: (isPreviewing) {
-                    setState(() {
-                      _isPreviewing = isPreviewing;
-                    });
-                  },
-                  markdownShortcuts: _markdownTools,
-                  onShortcutSelected: _applyShortcut,
-                )
-              : _NoteReadView(
-                  key: const ValueKey('read'),
-                  title: titleText,
-                  content: contentText,
-                  tags: _tags,
-                  updatedAt: widget.initial?.updatedAt,
-                ),
+            TextButton(onPressed: _save, child: const Text('Save')),
+          ],
         ),
+        body: SafeArea(
+          child: _NoteEditView(
+            key: const ValueKey('edit'),
+            titleController: _titleController,
+            contentController: _contentController,
+            tags: _tags,
+            isPreviewing: _isPreviewing,
+            onPreviewChanged: (isPreviewing) {
+              setState(() {
+                _isPreviewing = isPreviewing;
+              });
+            },
+            markdownShortcuts: _markdownTools,
+            onShortcutSelected: _applyShortcut,
+          ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      body: _NoteReadView(
+        key: const ValueKey('read'),
+        title: titleText,
+        content: contentText,
+        tags: _tags,
+        updatedAt: widget.initial?.updatedAt,
+        onEdit: () {
+          setState(() {
+            _isEditing = true;
+          });
+        },
       ),
     );
   }
@@ -393,50 +388,60 @@ class _NoteReadView extends StatelessWidget {
     required this.content,
     required this.tags,
     required this.updatedAt,
+    required this.onEdit,
   });
 
   final String title;
   final String content;
   final List<String> tags;
   final DateTime? updatedAt;
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
-          child: Text(
-            title,
-            style: Theme.of(
-              context,
-            ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
-          ),
+    final theme = Theme.of(context);
+
+    return CustomScrollView(
+      slivers: [
+        SliverAppBar(
+          pinned: true,
+          titleSpacing: 20,
+          title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+          actions: [
+            IconButton(
+              onPressed: onEdit,
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: 'Edit',
+            ),
+          ],
         ),
-        if (updatedAt != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
-            child: Text(
-              'Updated ${updatedAt!.day}/${updatedAt!.month}/${updatedAt!.year}',
-              style: Theme.of(context).textTheme.bodySmall,
+        if (updatedAt != null || tags.isNotEmpty)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (updatedAt != null)
+                    Text(
+                      'Updated ${updatedAt!.day}/${updatedAt!.month}/${updatedAt!.year}',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  if (tags.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: tags
+                          .map((tag) => Chip(label: Text(tag)))
+                          .toList(),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
-        if (tags.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: tags.map((tag) => Chip(label: Text(tag))).toList(),
-            ),
-          ),
-        Expanded(
-          child: MarkdownRenderView(
-            data: content,
-            padding: const EdgeInsets.fromLTRB(24, 22, 24, 32),
-          ),
-        ),
+        MarkdownRenderSliver(data: content),
       ],
     );
   }

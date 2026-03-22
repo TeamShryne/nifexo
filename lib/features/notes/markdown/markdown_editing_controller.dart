@@ -60,7 +60,6 @@ class MarkdownEditingController extends TextEditingController {
     TextStyle? style,
     ThemeData theme,
   ) {
-    final linkColor = theme.colorScheme.primary;
     final mutedStyle = style?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
       fontWeight: FontWeight.w500,
@@ -69,13 +68,13 @@ class MarkdownEditingController extends TextEditingController {
     if (line.startsWith('### ')) {
       return [
         TextSpan(text: '### ', style: mutedStyle),
-        ..._inlineParser.parse(
+        ..._inlineNodes(
+          theme,
           line.substring(4),
           style?.copyWith(
             fontSize: (style?.fontSize ?? 16) + 2,
             fontWeight: FontWeight.w700,
           ),
-          linkColor,
         ),
       ];
     }
@@ -83,13 +82,13 @@ class MarkdownEditingController extends TextEditingController {
     if (line.startsWith('## ')) {
       return [
         TextSpan(text: '## ', style: mutedStyle),
-        ..._inlineParser.parse(
+        ..._inlineNodes(
+          theme,
           line.substring(3),
           style?.copyWith(
             fontSize: (style?.fontSize ?? 16) + 4,
             fontWeight: FontWeight.w700,
           ),
-          linkColor,
         ),
       ];
     }
@@ -97,13 +96,13 @@ class MarkdownEditingController extends TextEditingController {
     if (line.startsWith('# ')) {
       return [
         TextSpan(text: '# ', style: mutedStyle),
-        ..._inlineParser.parse(
+        ..._inlineNodes(
+          theme,
           line.substring(2),
           style?.copyWith(
             fontSize: (style?.fontSize ?? 16) + 8,
             fontWeight: FontWeight.w800,
           ),
-          linkColor,
         ),
       ];
     }
@@ -114,13 +113,13 @@ class MarkdownEditingController extends TextEditingController {
           text: '> ',
           style: mutedStyle?.copyWith(color: theme.colorScheme.primary),
         ),
-        ..._inlineParser.parse(
+        ..._inlineNodes(
+          theme,
           line.substring(2),
           style?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
             fontStyle: FontStyle.italic,
           ),
-          linkColor,
         ),
       ];
     }
@@ -145,12 +144,12 @@ class MarkdownEditingController extends TextEditingController {
             ),
           ),
         ),
-        ..._inlineParser.parse(
+        ..._inlineNodes(
+          theme,
           line.substring(6),
           style?.copyWith(
             decoration: isChecked ? TextDecoration.lineThrough : null,
           ),
-          linkColor,
         ),
       ];
     }
@@ -173,7 +172,7 @@ class MarkdownEditingController extends TextEditingController {
             ),
           ),
         ),
-        ..._inlineParser.parse(line.substring(2), style, linkColor),
+        ..._inlineNodes(theme, line.substring(2), style),
       ];
     }
 
@@ -181,10 +180,45 @@ class MarkdownEditingController extends TextEditingController {
     if (numberedMatch != null) {
       return [
         TextSpan(text: numberedMatch.group(1), style: mutedStyle),
-        ..._inlineParser.parse(numberedMatch.group(2)!, style, linkColor),
+        ..._inlineNodes(theme, numberedMatch.group(2)!, style),
       ];
     }
 
-    return _inlineParser.parse(line, style, linkColor);
+    return _inlineNodes(theme, line, style);
+  }
+
+  List<InlineSpan> _inlineNodes(
+    ThemeData theme,
+    String text,
+    TextStyle? baseStyle,
+  ) {
+    return _inlineParser
+        .parse(text)
+        .map(
+          (node) => TextSpan(
+            text: node.text,
+            style: baseStyle?.copyWith(
+              fontWeight: node.isBold ? FontWeight.w700 : baseStyle.fontWeight,
+              fontStyle: node.isItalic || node.isInlineMath
+                  ? FontStyle.italic
+                  : baseStyle.fontStyle,
+              decoration: node.isStrikethrough
+                  ? TextDecoration.lineThrough
+                  : baseStyle.decoration,
+              color: node.linkUrl != null
+                  ? theme.colorScheme.primary
+                  : baseStyle.color,
+              fontFamily: node.isInlineCode || node.isInlineMath
+                  ? 'monospace'
+                  : baseStyle.fontFamily,
+              backgroundColor: node.isInlineCode
+                  ? theme.colorScheme.surfaceContainerHighest
+                  : node.isInlineMath
+                  ? theme.colorScheme.surfaceContainerLow
+                  : baseStyle.backgroundColor,
+            ),
+          ),
+        )
+        .toList();
   }
 }

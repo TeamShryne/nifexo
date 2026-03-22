@@ -27,7 +27,27 @@ class MarkdownParser {
         continue;
       }
 
+      if (trimmed.trim() == r'$$') {
+        final buffer = <String>[];
+        index++;
+        while (index < lines.length && lines[index].trim() != r'$$') {
+          buffer.add(lines[index]);
+          index++;
+        }
+        if (index < lines.length) {
+          index++;
+        }
+        blocks.add(
+          MarkdownBlock(
+            type: MarkdownBlockType.mathBlock,
+            text: buffer.join('\n').trim(),
+          ),
+        );
+        continue;
+      }
+
       if (trimmed.startsWith('```')) {
+        final meta = trimmed.substring(3).trim();
         final buffer = <String>[];
         index++;
         while (index < lines.length && !lines[index].startsWith('```')) {
@@ -41,6 +61,7 @@ class MarkdownParser {
           MarkdownBlock(
             type: MarkdownBlockType.codeBlock,
             text: buffer.join('\n'),
+            meta: meta,
           ),
         );
         continue;
@@ -142,6 +163,24 @@ class MarkdownParser {
         continue;
       }
 
+      if (_isTableHeader(trimmed, index, lines)) {
+        final headers = _parseTableCells(trimmed);
+        final rows = <List<String>>[];
+        index += 2;
+        while (index < lines.length && _isTableRow(lines[index])) {
+          rows.add(_parseTableCells(lines[index].trimRight()));
+          index++;
+        }
+        blocks.add(
+          MarkdownBlock(
+            type: MarkdownBlockType.table,
+            tableHeaders: headers,
+            tableRows: rows,
+          ),
+        );
+        continue;
+      }
+
       final paragraphLines = <String>[];
       while (index < lines.length && !_startsNewBlock(lines[index])) {
         final current = lines[index].trimRight();
@@ -166,11 +205,13 @@ class MarkdownParser {
     return trimmed.isEmpty ||
         trimmed == '---' ||
         trimmed.startsWith('```') ||
+        trimmed == r'$$' ||
         trimmed.startsWith('# ') ||
         trimmed.startsWith('## ') ||
         trimmed.startsWith('### ') ||
         trimmed.startsWith('> ') ||
         trimmed.startsWith('- ') ||
+        _isTableHeader(trimmed, 0, [trimmed, '']) ||
         _isChecklistLine(trimmed) ||
         _isNumberedListLine(trimmed);
   }
@@ -187,5 +228,33 @@ class MarkdownParser {
     final prefix = line.substring(0, dotIndex);
     if (int.tryParse(prefix) == null) return false;
     return dotIndex + 1 < line.length && line[dotIndex + 1] == ' ';
+  }
+
+  bool _isTableHeader(String line, int index, List<String> lines) {
+    if (index + 1 >= lines.length) return false;
+    return _isTableRow(line) && _isTableDivider(lines[index + 1].trim());
+  }
+
+  bool _isTableRow(String line) {
+    final trimmed = line.trim();
+    return trimmed.startsWith('|') &&
+        trimmed.endsWith('|') &&
+        trimmed.contains('|');
+  }
+
+  bool _isTableDivider(String line) {
+    final trimmed = line.trim();
+    if (!_isTableRow(trimmed)) return false;
+    final cells = _parseTableCells(trimmed);
+    return cells.every((cell) => RegExp(r'^:?-{3,}:?$').hasMatch(cell));
+  }
+
+  List<String> _parseTableCells(String line) {
+    return line
+        .trim()
+        .substring(1, line.trim().length - 1)
+        .split('|')
+        .map((cell) => cell.trim())
+        .toList();
   }
 }
