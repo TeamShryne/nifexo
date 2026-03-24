@@ -1,21 +1,22 @@
 import 'package:flutter/material.dart';
 
-import '../core/models/note.dart';
-import '../core/models/todo_item.dart';
-import '../features/home/presentation/home_screen.dart';
-import '../features/notes/presentation/notes_screen.dart';
-import '../features/search/presentation/search_screen.dart';
-import '../features/settings/presentation/settings_screen.dart';
-import '../features/todos/presentation/todos_screen.dart';
+import 'package:nifexo/core/models/note.dart';
+import 'package:nifexo/core/models/todo_item.dart';
+import 'package:nifexo/features/home/presentation/home_screen.dart';
+import 'package:nifexo/features/notes/presentation/notes_screen.dart';
+import 'package:nifexo/features/search/presentation/search_screen.dart';
+import 'package:nifexo/features/settings/presentation/settings_screen.dart';
+import 'package:nifexo/features/todos/presentation/todos_screen.dart';
 import 'theme.dart';
 
-import '../core/repositories/note_repository.dart';
-import '../core/repositories/todo_repository.dart';
-import '../core/repositories/settings_repository.dart';
-import '../core/services/notification_service.dart';
+import 'package:nifexo/core/di/repository_container.dart';
+import 'package:nifexo/core/services/notification_service.dart';
+import 'package:nifexo/core/services/backup_service.dart';
 
 class NifexoApp extends StatefulWidget {
-  const NifexoApp({super.key});
+  const NifexoApp({super.key, this.repositories});
+
+  final RepositoryContainer? repositories;
 
   @override
   State<NifexoApp> createState() => _NifexoAppState();
@@ -23,17 +24,18 @@ class NifexoApp extends StatefulWidget {
 
 class _NifexoAppState extends State<NifexoApp> {
   ThemeMode _themeMode = ThemeMode.light;
-  final _settingsRepository = SettingsRepository();
+  late final RepositoryContainer _repositories;
 
   @override
   void initState() {
     super.initState();
+    _repositories = widget.repositories ?? RepositoryContainer.prod();
     _loadSettings();
   }
 
   Future<void> _loadSettings() async {
     try {
-      final themeMode = await _settingsRepository.getSetting('themeMode');
+      final themeMode = await _repositories.settingsRepository.getSetting('themeMode');
       if (themeMode != null && mounted) {
         setState(() {
           _themeMode = themeMode == 'dark' ? ThemeMode.dark : ThemeMode.light;
@@ -53,10 +55,11 @@ class _NifexoAppState extends State<NifexoApp> {
       darkTheme: buildNifexoTheme(brightness: Brightness.dark),
       themeMode: _themeMode,
       home: AlphaShell(
+        repositories: _repositories,
         isDarkMode: _themeMode == ThemeMode.dark,
         onThemeModeChanged: (enabled) async {
           final newMode = enabled ? ThemeMode.dark : ThemeMode.light;
-          await _settingsRepository.setSetting('themeMode', enabled ? 'dark' : 'light');
+          await _repositories.settingsRepository.setSetting('themeMode', enabled ? 'dark' : 'light');
           setState(() {
             _themeMode = newMode;
           });
@@ -69,10 +72,12 @@ class _NifexoAppState extends State<NifexoApp> {
 class AlphaShell extends StatefulWidget {
   const AlphaShell({
     super.key,
+    required this.repositories,
     required this.isDarkMode,
     required this.onThemeModeChanged,
   });
 
+  final RepositoryContainer repositories;
   final bool isDarkMode;
   final ValueChanged<bool> onThemeModeChanged;
 
@@ -84,24 +89,27 @@ class _AlphaShellState extends State<AlphaShell> {
   int _currentIndex = 0;
   List<Note> _notes = [];
   List<TodoItem> _todos = [];
-
-  final _noteRepository = NoteRepository();
-  final _todoRepository = TodoRepository();
+  late final BackupService _backupService;
 
   @override
   void initState() {
     super.initState();
+    _backupService = BackupService(
+      noteRepository: widget.repositories.noteRepository,
+      todoRepository: widget.repositories.todoRepository,
+      settingsRepository: widget.repositories.settingsRepository,
+    );
     _loadData();
   }
 
   Future<void> _loadData() async {
     try {
-      var notes = await _noteRepository.getAllNotes();
-      final todos = await _todoRepository.getAllTodos();
+      var notes = await widget.repositories.noteRepository.getAllNotes();
+      final todos = await widget.repositories.todoRepository.getAllTodos();
 
       if (notes.isEmpty) {
         await _insertExampleNote();
-        notes = await _noteRepository.getAllNotes();
+        notes = await widget.repositories.noteRepository.getAllNotes();
       }
 
       if (mounted) {
@@ -163,7 +171,7 @@ x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}
       updatedAt: now,
       isPinned: true,
     );
-    await _noteRepository.insertNote(exampleNote);
+    await widget.repositories.noteRepository.insertNote(exampleNote);
   }
 
   Future<void> _createNote(NoteDraft draft) async {
@@ -179,7 +187,7 @@ x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}
       createdAt: now,
       updatedAt: now,
     );
-    await _noteRepository.insertNote(note);
+    await widget.repositories.noteRepository.insertNote(note);
     await _loadData();
   }
 
@@ -195,12 +203,12 @@ x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}
       tags: draft.tags,
       updatedAt: DateTime.now(),
     );
-    await _noteRepository.updateNote(updatedNote);
+    await widget.repositories.noteRepository.updateNote(updatedNote);
     await _loadData();
   }
 
   Future<void> _deleteNote(String noteId) async {
-    await _noteRepository.deleteNote(noteId);
+    await widget.repositories.noteRepository.deleteNote(noteId);
     await _loadData();
   }
 
@@ -213,7 +221,7 @@ x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}
       isPinned: !note.isPinned,
       updatedAt: DateTime.now(),
     );
-    await _noteRepository.updateNote(updatedNote);
+    await widget.repositories.noteRepository.updateNote(updatedNote);
     await _loadData();
   }
 
@@ -230,9 +238,9 @@ x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}
       reminderAt: draft.reminderAt,
       priority: draft.priority,
     );
-    await _todoRepository.insertTodo(todo);
+    await widget.repositories.todoRepository.insertTodo(todo);
     if (todo.reminderAt != null) {
-      await NotificationService().scheduleTodoReminder(todo);
+      await widget.repositories.notificationService.scheduleTodoReminder(todo);
     }
     await _loadData();
   }
@@ -250,12 +258,12 @@ x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}
       priority: draft.priority,
       updatedAt: DateTime.now(),
     );
-    await _todoRepository.updateTodo(updatedTodo);
+    await widget.repositories.todoRepository.updateTodo(updatedTodo);
     
     // Update notification
-    await NotificationService().cancelTodoReminder(todoId);
+    await widget.repositories.notificationService.cancelTodoReminder(todoId);
     if (updatedTodo.reminderAt != null && !updatedTodo.isDone) {
-      await NotificationService().scheduleTodoReminder(updatedTodo);
+      await widget.repositories.notificationService.scheduleTodoReminder(updatedTodo);
     }
     
     await _loadData();
@@ -269,20 +277,20 @@ x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}
       isDone: isDone,
       updatedAt: DateTime.now(),
     );
-    await _todoRepository.updateTodo(updatedTodo);
+    await widget.repositories.todoRepository.updateTodo(updatedTodo);
     
     if (isDone) {
-      await NotificationService().cancelTodoReminder(todoId);
+      await widget.repositories.notificationService.cancelTodoReminder(todoId);
     } else if (updatedTodo.reminderAt != null) {
-      await NotificationService().scheduleTodoReminder(updatedTodo);
+      await widget.repositories.notificationService.scheduleTodoReminder(updatedTodo);
     }
     
     await _loadData();
   }
 
   Future<void> _deleteTodo(String todoId) async {
-    await NotificationService().cancelTodoReminder(todoId);
-    await _todoRepository.deleteTodo(todoId);
+    await widget.repositories.notificationService.cancelTodoReminder(todoId);
+    await widget.repositories.todoRepository.deleteTodo(todoId);
     await _loadData();
   }
 
@@ -295,7 +303,7 @@ x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}
       isPinned: !todo.isPinned,
       updatedAt: DateTime.now(),
     );
-    await _todoRepository.updateTodo(updatedTodo);
+    await widget.repositories.todoRepository.updateTodo(updatedTodo);
     await _loadData();
   }
 
@@ -308,7 +316,7 @@ x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}
       return;
     }
 
-    final draft = await openNoteEditorPage(context, startInEditMode: true);
+    final draft = await openNoteEditorPage(context, startInEditMode: true, backupService: _backupService);
     if (draft != null) {
       await _createNote(draft);
     }
@@ -324,6 +332,7 @@ x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}
         onUpdate: _updateNote,
         onDelete: _deleteNote,
         onTogglePinned: _toggleNotePinned,
+        backupService: _backupService,
       ),
       TodosScreen(
         todos: _todos,
@@ -338,6 +347,7 @@ x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}
         isDarkMode: widget.isDarkMode,
         onDarkModeChanged: widget.onThemeModeChanged,
         onImportComplete: _loadData,
+        backupService: _backupService,
       ),
     ];
 

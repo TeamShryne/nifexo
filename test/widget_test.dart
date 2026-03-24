@@ -3,12 +3,13 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:nifexo/app/app.dart';
 import 'package:nifexo/features/notes/markdown/markdown_inline_parser.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'mock_repositories.dart';
 
 void main() {
-  setUpAll(() {
-    sqfliteFfiInit();
-    databaseFactory = databaseFactoryFfi;
+  late MockRepositoryContainer mockRepositories;
+
+  setUp(() {
+    mockRepositories = MockRepositoryContainer();
   });
 
   test('inline parser supports *italic* and **bold**', () {
@@ -27,7 +28,7 @@ void main() {
   });
 
   testWidgets('alpha shell renders core navigation', (tester) async {
-    await tester.pumpWidget(const NifexoApp());
+    await tester.pumpWidget(NifexoApp(repositories: mockRepositories));
     await tester.pumpAndSettle();
 
     expect(find.text('Nifexo Alpha'), findsOneWidget);
@@ -41,14 +42,14 @@ void main() {
   });
 
   testWidgets('can create a note from the notes screen', (tester) async {
-    await tester.pumpWidget(const NifexoApp());
+    await tester.pumpWidget(NifexoApp(repositories: mockRepositories));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Notes').last);
     await tester.pumpAndSettle();
 
-    // Check if the empty state is visible
-    expect(find.textContaining('No notes yet'), findsOneWidget);
+    // Check if the welcome note is visible
+    expect(find.textContaining('Welcome to Nifexo!'), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.add_rounded));
     await tester.pumpAndSettle();
@@ -71,7 +72,7 @@ void main() {
   testWidgets('existing note opens in read mode and can be edited', (
     tester,
   ) async {
-    await tester.pumpWidget(const NifexoApp());
+    await tester.pumpWidget(NifexoApp(repositories: mockRepositories));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Notes').last);
@@ -109,7 +110,7 @@ void main() {
   });
 
   testWidgets('tags can be edited from the note header modal', (tester) async {
-    await tester.pumpWidget(const NifexoApp());
+    await tester.pumpWidget(NifexoApp(repositories: mockRepositories));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Notes').last);
@@ -137,7 +138,7 @@ void main() {
   });
 
   testWidgets('settings can toggle dark mode', (tester) async {
-    await tester.pumpWidget(const NifexoApp());
+    await tester.pumpWidget(NifexoApp(repositories: mockRepositories));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Settings').last);
@@ -158,7 +159,7 @@ void main() {
   });
 
   testWidgets('preview and read mode handle markdown safely', (tester) async {
-    await tester.pumpWidget(const NifexoApp());
+    await tester.pumpWidget(NifexoApp(repositories: mockRepositories));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Notes').last);
@@ -189,7 +190,7 @@ void main() {
   });
 
   testWidgets('preview and read render star lists with emphasis', (tester) async {
-    await tester.pumpWidget(const NifexoApp());
+    await tester.pumpWidget(NifexoApp(repositories: mockRepositories));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Notes').last);

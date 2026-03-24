@@ -60,7 +60,7 @@ class MarkdownEditorController {
       MarkdownShortcutType.divider => _insertDivider(selectedText),
     };
 
-    final newValue = value.replaced(
+    final newValue = _TextEditingValueExtension(value).replaced(
       TextRange(start: start, end: end),
       replacement,
     );

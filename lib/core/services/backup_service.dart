@@ -5,16 +5,27 @@ import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
-import '../models/note.dart';
-import '../models/todo_item.dart';
-import '../repositories/note_repository.dart';
-import '../repositories/todo_repository.dart';
-import '../repositories/settings_repository.dart';
+import 'package:nifexo/core/models/note.dart';
+import 'package:nifexo/core/models/todo_item.dart';
+import 'package:nifexo/core/repositories/note_repository.dart';
+import 'package:nifexo/core/repositories/todo_repository.dart';
+import 'package:nifexo/core/repositories/settings_repository.dart';
+import 'package:nifexo/core/repositories/sql_note_repository.dart';
+import 'package:nifexo/core/repositories/sql_todo_repository.dart';
+import 'package:nifexo/core/repositories/sql_settings_repository.dart';
 
 class BackupService {
-  final _noteRepository = NoteRepository();
-  final _todoRepository = TodoRepository();
-  final _settingsRepository = SettingsRepository();
+  final NoteRepository _noteRepository;
+  final TodoRepository _todoRepository;
+  final SettingsRepository _settingsRepository;
+
+  BackupService({
+    NoteRepository? noteRepository,
+    TodoRepository? todoRepository,
+    SettingsRepository? settingsRepository,
+  })  : _noteRepository = noteRepository ?? SqlNoteRepository(),
+        _todoRepository = todoRepository ?? SqlTodoRepository(),
+        _settingsRepository = settingsRepository ?? SqlSettingsRepository();
 
   Future<void> exportNoteAsMarkdown(Note note) async {
     final tempDir = await getTemporaryDirectory();

@@ -18,17 +18,23 @@ class AppDatabase {
   }
 
   Future<Database> _initDatabase() async {
-    if (Platform.isLinux || Platform.isWindows) {
-      sqfliteFfiInit();
-      databaseFactory = databaseFactoryFfi;
-    }
-
     final String path;
     if (Platform.environment.containsKey('FLUTTER_TEST')) {
       path = inMemoryDatabasePath;
     } else {
       final documentsDirectory = await getApplicationDocumentsDirectory();
       path = join(documentsDirectory.path, 'nifexo.db');
+    }
+
+    if (Platform.isLinux || Platform.isWindows) {
+      sqfliteFfiInit();
+      return await databaseFactoryFfi.openDatabase(
+        path,
+        options: OpenDatabaseOptions(
+          version: 1,
+          onCreate: _onCreate,
+        ),
+      );
     }
 
     return await openDatabase(

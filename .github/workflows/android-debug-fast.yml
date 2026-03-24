@@ -31,6 +31,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: false
+          gradle-home-cache-cleanup: true
 
       - name: Set up Flutter with cache
         uses: subosito/flutter-action@v2
@@ -39,15 +40,16 @@ jobs:
           cache: true
           cache-key: flutter-fast-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
 
-      - name: Cache Dart and Android intermediates
+      - name: Cache build intermediates
         uses: actions/cache@v4
         with:
           path: |
-            .dart_tool
-            android/.gradle
-          key: fast-build-${{ runner.os }}-${{ hashFiles('pubspec.lock', 'android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+            build/app/intermediates
+            build/app/outputs/flutter-apk
+            ~/.pub-cache
+          key: fast-intermediates-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
           restore-keys: |
-            fast-build-${{ runner.os }}-
+            fast-intermediates-${{ runner.os }}-
 
       - name: Install dependencies
         run: flutter pub get
@@ -56,7 +58,9 @@ jobs:
         run: flutter precache --android
 
       - name: Build debug APK
-        run: flutter build apk --debug
+        run: |
+          # Fast build: Disable multi-dex, use only one architecture, skip unnecessary tasks
+          flutter build apk --debug --target-platform android-arm64 --no-pub
 
       - name: Upload fast debug APK
         uses: actions/upload-artifact@v4

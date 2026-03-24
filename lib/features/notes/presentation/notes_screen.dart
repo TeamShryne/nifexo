@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/models/note.dart';
-import '../markdown/markdown_editing_controller.dart';
-import '../markdown/markdown_editor_controller.dart';
-import '../markdown/markdown_editor_toolbar.dart';
-import '../markdown/markdown_render_view.dart';
-import '../markdown/markdown_shortcut.dart';
-import '../markdown/markdown_shortcuts.dart';
+import 'package:nifexo/core/models/note.dart';
+import 'package:nifexo/features/notes/markdown/markdown_editing_controller.dart';
+import 'package:nifexo/features/notes/markdown/markdown_editor_controller.dart';
+import 'package:nifexo/features/notes/markdown/markdown_editor_toolbar.dart';
+import 'package:nifexo/features/notes/markdown/markdown_render_view.dart';
+import 'package:nifexo/features/notes/markdown/markdown_shortcut.dart';
+import 'package:nifexo/features/notes/markdown/markdown_shortcuts.dart';
 
-import '../../../core/services/backup_service.dart';
+import 'package:nifexo/core/services/backup_service.dart';
 
 class NotesScreen extends StatelessWidget {
   const NotesScreen({
@@ -18,6 +18,7 @@ class NotesScreen extends StatelessWidget {
     required this.onUpdate,
     required this.onDelete,
     required this.onTogglePinned,
+    required this.backupService,
   });
 
   final List<Note> notes;
@@ -25,6 +26,7 @@ class NotesScreen extends StatelessWidget {
   final Future<void> Function(String noteId, NoteDraft draft) onUpdate;
   final Future<void> Function(String noteId) onDelete;
   final Future<void> Function(String noteId) onTogglePinned;
+  final BackupService backupService;
 
   @override
   Widget build(BuildContext context) {
@@ -39,6 +41,7 @@ class NotesScreen extends StatelessWidget {
               final draft = await openNoteEditorPage(
                 context,
                 startInEditMode: true,
+                backupService: backupService,
               );
               if (draft != null) {
                 await onCreate(draft);
@@ -61,6 +64,7 @@ class NotesScreen extends StatelessWidget {
                       final draft = await openNoteEditorPage(
                         context,
                         initial: note,
+                        backupService: backupService,
                       );
                       if (draft != null) {
                         await onUpdate(note.id, draft);
@@ -141,20 +145,22 @@ Future<NoteDraft?> openNoteEditorPage(
   BuildContext context, {
   Note? initial,
   bool startInEditMode = false,
+  required BackupService backupService,
 }) {
   return Navigator.of(context).push<NoteDraft>(
     MaterialPageRoute(
       builder: (_) =>
-          NoteEditorPage(initial: initial, startInEditMode: startInEditMode),
+          NoteEditorPage(initial: initial, startInEditMode: startInEditMode, backupService: backupService),
     ),
   );
 }
 
 class NoteEditorPage extends StatefulWidget {
-  const NoteEditorPage({super.key, this.initial, this.startInEditMode = false});
+  const NoteEditorPage({super.key, this.initial, this.startInEditMode = false, required this.backupService});
 
   final Note? initial;
   final bool startInEditMode;
+  final BackupService backupService;
 
   @override
   State<NoteEditorPage> createState() => _NoteEditorPageState();
@@ -338,7 +344,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
           });
         },
         onExport: widget.initial == null ? null : () {
-          BackupService().exportNoteAsMarkdown(widget.initial!);
+          widget.backupService.exportNoteAsMarkdown(widget.initial!);
         },
       ),
     );

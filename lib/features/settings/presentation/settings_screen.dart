@@ -10,11 +10,13 @@ class SettingsScreen extends StatefulWidget {
     required this.isDarkMode,
     required this.onDarkModeChanged,
     required this.onImportComplete,
+    required this.backupService,
   });
 
   final bool isDarkMode;
   final ValueChanged<bool> onDarkModeChanged;
   final VoidCallback onImportComplete;
+  final BackupService backupService;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -56,7 +58,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final backupService = BackupService();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -112,7 +113,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     subtitle: const Text('Export all data to a JSON file.'),
                     onTap: () async {
                       try {
-                        await backupService.createBackup();
+                        await widget.backupService.createBackup();
                         if (!context.mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Backup created')),
@@ -133,7 +134,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     subtitle: const Text('Restore data from a JSON file.'),
                     onTap: () async {
                       try {
-                        final success = await backupService.importBackup();
+                        final success = await widget.backupService.importBackup();
                         if (success) {
                           widget.onImportComplete();
                           if (!context.mounted) return;
