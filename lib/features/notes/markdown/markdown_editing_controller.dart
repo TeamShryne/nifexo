@@ -13,6 +13,15 @@ class MarkdownEditingController extends TextEditingController {
     TextStyle? style,
     required bool withComposing,
   }) {
+    // Keep IME composing behavior stable (important for paste/edit operations on desktop/mobile keyboards).
+    if (withComposing && value.isComposingRangeValid) {
+      return super.buildTextSpan(
+        context: context,
+        style: style,
+        withComposing: withComposing,
+      );
+    }
+
     final theme = Theme.of(context);
     final lines = text.split('\n');
     final children = <InlineSpan>[];
@@ -72,7 +81,7 @@ class MarkdownEditingController extends TextEditingController {
           theme,
           line.substring(4),
           style?.copyWith(
-            fontSize: (style?.fontSize ?? 16) + 2,
+            fontSize: (style.fontSize ?? 16) + 2,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -86,7 +95,7 @@ class MarkdownEditingController extends TextEditingController {
           theme,
           line.substring(3),
           style?.copyWith(
-            fontSize: (style?.fontSize ?? 16) + 4,
+            fontSize: (style.fontSize ?? 16) + 4,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -100,7 +109,7 @@ class MarkdownEditingController extends TextEditingController {
           theme,
           line.substring(2),
           style?.copyWith(
-            fontSize: (style?.fontSize ?? 16) + 8,
+            fontSize: (style.fontSize ?? 16) + 8,
             fontWeight: FontWeight.w800,
           ),
         ),
@@ -126,27 +135,28 @@ class MarkdownEditingController extends TextEditingController {
 
     if (line.startsWith('- [ ] ') ||
         line.startsWith('- [x] ') ||
-        line.startsWith('- [X] ')) {
-      final isChecked = line.startsWith('- [x] ') || line.startsWith('- [X] ');
+        line.startsWith('- [X] ') ||
+        line.startsWith('* [ ] ') ||
+        line.startsWith('* [x] ') ||
+        line.startsWith('* [X] ') ||
+        line.startsWith('+ [ ] ') ||
+        line.startsWith('+ [x] ') ||
+        line.startsWith('+ [X] ')) {
+      final marker = line.substring(0, 6);
+      final isChecked = marker.contains('[x]') || marker.contains('[X]');
       return [
-        WidgetSpan(
-          alignment: PlaceholderAlignment.middle,
-          child: Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: Icon(
-              isChecked
-                  ? Icons.check_box_rounded
-                  : Icons.check_box_outline_blank_rounded,
-              size: 18,
-              color: isChecked
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.onSurfaceVariant,
-            ),
+        TextSpan(
+          text: marker,
+          style: mutedStyle?.copyWith(
+            color: isChecked
+                ? theme.colorScheme.primary
+                : theme.colorScheme.onSurfaceVariant,
+            fontFamily: 'monospace',
           ),
         ),
         ..._inlineNodes(
           theme,
-          line.substring(6),
+          line.substring(marker.length),
           style?.copyWith(
             decoration: isChecked ? TextDecoration.lineThrough : null,
           ),
@@ -157,22 +167,13 @@ class MarkdownEditingController extends TextEditingController {
     if (line.startsWith('- ') ||
         line.startsWith('* ') ||
         line.startsWith('+ ')) {
+      final marker = line.substring(0, 2);
       return [
-        WidgetSpan(
-          alignment: PlaceholderAlignment.middle,
-          child: Padding(
-            padding: const EdgeInsets.only(right: 10),
-            child: Container(
-              width: 6,
-              height: 6,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.onSurface,
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
+        TextSpan(
+          text: marker,
+          style: mutedStyle?.copyWith(fontFamily: 'monospace'),
         ),
-        ..._inlineNodes(theme, line.substring(2), style),
+        ..._inlineNodes(theme, line.substring(marker.length), style),
       ];
     }
 

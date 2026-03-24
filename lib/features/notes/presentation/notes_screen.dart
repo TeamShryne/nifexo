@@ -8,6 +8,8 @@ import '../markdown/markdown_render_view.dart';
 import '../markdown/markdown_shortcut.dart';
 import '../markdown/markdown_shortcuts.dart';
 
+import '../../../core/services/backup_service.dart';
+
 class NotesScreen extends StatelessWidget {
   const NotesScreen({
     super.key,
@@ -19,10 +21,10 @@ class NotesScreen extends StatelessWidget {
   });
 
   final List<Note> notes;
-  final ValueChanged<NoteDraft> onCreate;
-  final void Function(String noteId, NoteDraft draft) onUpdate;
-  final ValueChanged<String> onDelete;
-  final ValueChanged<String> onTogglePinned;
+  final Future<void> Function(NoteDraft) onCreate;
+  final Future<void> Function(String noteId, NoteDraft draft) onUpdate;
+  final Future<void> Function(String noteId) onDelete;
+  final Future<void> Function(String noteId) onTogglePinned;
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +41,7 @@ class NotesScreen extends StatelessWidget {
                 startInEditMode: true,
               );
               if (draft != null) {
-                onCreate(draft);
+                await onCreate(draft);
               }
             },
             icon: const Icon(Icons.add_rounded),
@@ -61,7 +63,7 @@ class NotesScreen extends StatelessWidget {
                         initial: note,
                       );
                       if (draft != null) {
-                        onUpdate(note.id, draft);
+                        await onUpdate(note.id, draft);
                       }
                     },
                     child: Padding(
@@ -78,7 +80,7 @@ class NotesScreen extends StatelessWidget {
                                 ),
                               ),
                               IconButton(
-                                onPressed: () => onTogglePinned(note.id),
+                                onPressed: () async => await onTogglePinned(note.id),
                                 icon: Icon(
                                   note.isPinned
                                       ? Icons.push_pin
@@ -87,7 +89,7 @@ class NotesScreen extends StatelessWidget {
                                 ),
                               ),
                               IconButton(
-                                onPressed: () => onDelete(note.id),
+                                onPressed: () async => await onDelete(note.id),
                                 icon: const Icon(Icons.delete_outline),
                               ),
                             ],
@@ -207,6 +209,47 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     );
   }
 
+  bool get _hasUnsavedChanges {
+    final initial = widget.initial;
+    if (initial == null) {
+      return _titleController.text.trim().isNotEmpty ||
+          _contentController.text.trim().isNotEmpty ||
+          _tags.isNotEmpty;
+    }
+
+    if (_titleController.text != initial.title) return true;
+    if (_contentController.text != initial.contentMd) return true;
+    if (_tags.length != initial.tags.length) return true;
+    for (var i = 0; i < _tags.length; i++) {
+      if (_tags[i] != initial.tags[i]) return true;
+    }
+    return false;
+  }
+
+  Future<bool> _confirmDiscardIfNeeded() async {
+    if (!_hasUnsavedChanges) return true;
+    final shouldDiscard = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Discard changes?'),
+        content: const Text(
+          'You have unsaved edits in this note. Discard them and go back?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Keep editing'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    return shouldDiscard ?? false;
+  }
+
   void _applyShortcut(MarkdownShortcutType type) {
     setState(() {
       _markdownEditorController.applyShortcut(_contentController, type);
@@ -231,32 +274,52 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     final contentText = _contentController.text.trim();
 
     if (_isEditing) {
-      return Scaffold(
-        appBar: AppBar(
-          title: Text(_isNew ? 'New Note' : 'Edit Note'),
-          actions: [
-            IconButton(
-              onPressed: _openTagsModal,
-              icon: const Icon(Icons.sell_outlined),
-              tooltip: 'Tags',
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) async {
+          if (didPop) return;
+          final shouldPop = await _confirmDiscardIfNeeded();
+          if (shouldPop && context.mounted) {
+            Navigator.of(context).pop();
+          }
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            leading: IconButton(
+              onPressed: () async {
+                final shouldPop = await _confirmDiscardIfNeeded();
+                if (shouldPop && context.mounted) {
+                  Navigator.of(context).maybePop();
+                }
+              },
+              icon: const Icon(Icons.arrow_back),
+              tooltip: 'Back',
             ),
-            TextButton(onPressed: _save, child: const Text('Save')),
-          ],
-        ),
-        body: SafeArea(
-          child: _NoteEditView(
-            key: const ValueKey('edit'),
-            titleController: _titleController,
-            contentController: _contentController,
-            tags: _tags,
-            isPreviewing: _isPreviewing,
-            onPreviewChanged: (isPreviewing) {
-              setState(() {
-                _isPreviewing = isPreviewing;
-              });
-            },
-            markdownShortcuts: _markdownTools,
-            onShortcutSelected: _applyShortcut,
+            title: Text(_isNew ? 'New Note' : 'Edit Note'),
+            actions: [
+              IconButton(
+                onPressed: _openTagsModal,
+                icon: const Icon(Icons.sell_outlined),
+                tooltip: 'Tags',
+              ),
+              TextButton(onPressed: _save, child: const Text('Save')),
+            ],
+          ),
+          body: SafeArea(
+            child: _NoteEditView(
+              key: const ValueKey('edit'),
+              titleController: _titleController,
+              contentController: _contentController,
+              tags: _tags,
+              isPreviewing: _isPreviewing,
+              onPreviewChanged: (isPreviewing) {
+                setState(() {
+                  _isPreviewing = isPreviewing;
+                });
+              },
+              markdownShortcuts: _markdownTools,
+              onShortcutSelected: _applyShortcut,
+            ),
           ),
         ),
       );
@@ -273,6 +336,9 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
           setState(() {
             _isEditing = true;
           });
+        },
+        onExport: widget.initial == null ? null : () {
+          BackupService().exportNoteAsMarkdown(widget.initial!);
         },
       ),
     );
@@ -302,79 +368,121 @@ class _NoteEditView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final text = contentController.text;
+    final words = RegExp(r'\S+').allMatches(text).length;
+    final characters = text.characters.length;
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-          child: TextField(
-            key: const ValueKey('note_title_field'),
-            controller: titleController,
-            style: theme.textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-            decoration: const InputDecoration(
-              hintText: 'Untitled',
-              border: InputBorder.none,
-              filled: false,
+        Container(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            border: Border(
+              bottom: BorderSide(color: theme.colorScheme.outlineVariant),
             ),
           ),
-        ),
-        if (tags.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: tags.map((tag) => Chip(label: Text(tag))).toList(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                key: const ValueKey('note_title_field'),
+                controller: titleController,
+                textInputAction: TextInputAction.next,
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+                decoration: const InputDecoration(
+                  hintText: 'Untitled',
+                  border: InputBorder.none,
+                  filled: false,
+                  isDense: true,
+                ),
               ),
-            ),
-          ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-          child: MarkdownEditorToolbar(
-            shortcuts: markdownShortcuts,
-            onShortcutSelected: onShortcutSelected,
-            isPreviewing: isPreviewing,
-            onPreviewToggled: onPreviewChanged,
+              if (tags.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: tags.map((tag) => Chip(label: Text(tag))).toList(),
+                ),
+              ],
+              const SizedBox(height: 12),
+              MarkdownEditorToolbar(
+                shortcuts: markdownShortcuts,
+                onShortcutSelected: onShortcutSelected,
+                isPreviewing: isPreviewing,
+                onPreviewToggled: onPreviewChanged,
+              ),
+            ],
           ),
         ),
         Expanded(
-          child: isPreviewing
-              ? MarkdownRenderView(
-                  key: const ValueKey('note_preview_view'),
-                  data: contentController.text,
-                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                )
-              : Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                  child: TextField(
-                    key: const ValueKey('note_content_field'),
-                    controller: contentController,
-                    expands: true,
-                    minLines: null,
-                    maxLines: null,
-                    keyboardType: TextInputType.multiline,
-                    textAlignVertical: TextAlignVertical.top,
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      height: 1.7,
-                      fontSize: 17,
-                    ),
-                    cursorWidth: 2,
-                    decoration: InputDecoration(
-                      hintText:
-                          'Use markdown shortcuts while typing: #, ##, ###, -, 1., [], >, **, _, `, ~~',
-                      hintStyle: theme.textTheme.bodyLarge?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 180),
+            child: isPreviewing
+                ? MarkdownRenderView(
+                    key: const ValueKey('note_preview_view'),
+                    data: contentController.text,
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                  )
+                : Padding(
+                    key: const ValueKey('note_editor_view'),
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                    child: TextField(
+                      key: const ValueKey('note_content_field'),
+                      controller: contentController,
+                      expands: true,
+                      minLines: null,
+                      maxLines: null,
+                      keyboardType: TextInputType.multiline,
+                      textAlignVertical: TextAlignVertical.top,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        height: 1.7,
+                        fontSize: 17,
                       ),
-                      border: InputBorder.none,
-                      filled: false,
-                      isCollapsed: true,
+                      cursorWidth: 2,
+                      decoration: InputDecoration(
+                        hintText:
+                            'Write markdown: #, ##, ###, *, -, 1., [link](url), >, **bold**, *italic*, `code`, ~~strike~~',
+                        hintStyle: theme.textTheme.bodyLarge?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        border: InputBorder.none,
+                        filled: false,
+                        isCollapsed: true,
+                      ),
                     ),
                   ),
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: theme.colorScheme.outlineVariant)),
+            color: theme.colorScheme.surfaceContainerLow,
+          ),
+          child: Row(
+            children: [
+              Text(
+                '$words words',
+                style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(width: 14),
+              Text(
+                '$characters chars',
+                style: theme.textTheme.bodySmall,
+              ),
+              const Spacer(),
+              Text(
+                isPreviewing ? 'Preview mode' : 'Edit mode',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -389,6 +497,7 @@ class _NoteReadView extends StatelessWidget {
     required this.tags,
     required this.updatedAt,
     required this.onEdit,
+    this.onExport,
   });
 
   final String title;
@@ -396,10 +505,12 @@ class _NoteReadView extends StatelessWidget {
   final List<String> tags;
   final DateTime? updatedAt;
   final VoidCallback onEdit;
+  final VoidCallback? onExport;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final hasContent = content.trim().isNotEmpty;
 
     return CustomScrollView(
       slivers: [
@@ -407,7 +518,14 @@ class _NoteReadView extends StatelessWidget {
           pinned: true,
           titleSpacing: 20,
           title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+          centerTitle: false,
           actions: [
+            if (onExport != null)
+              IconButton(
+                onPressed: onExport,
+                icon: const Icon(Icons.share_outlined),
+                tooltip: 'Export as Markdown',
+              ),
             IconButton(
               onPressed: onEdit,
               icon: const Icon(Icons.edit_outlined),
@@ -418,14 +536,24 @@ class _NoteReadView extends StatelessWidget {
         if (updatedAt != null || tags.isNotEmpty)
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
+              padding: const EdgeInsets.fromLTRB(24, 10, 24, 18),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (updatedAt != null)
-                    Text(
-                      'Updated ${updatedAt!.day}/${updatedAt!.month}/${updatedAt!.year}',
-                      style: theme.textTheme.bodySmall,
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        'Updated ${updatedAt!.day}/${updatedAt!.month}/${updatedAt!.year}',
+                        style: theme.textTheme.bodySmall,
+                      ),
                     ),
                   if (tags.isNotEmpty) ...[
                     const SizedBox(height: 12),
@@ -441,7 +569,24 @@ class _NoteReadView extends StatelessWidget {
               ),
             ),
           ),
-        MarkdownRenderSliver(data: content),
+        if (!hasContent)
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  'No content yet. Tap Edit to start writing.',
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          )
+        else
+          MarkdownRenderSliver(data: content),
       ],
     );
   }

@@ -14,20 +14,20 @@ class MarkdownParser {
 
     while (index < lines.length) {
       final line = lines[index];
-      final trimmed = line.trimRight();
+      final trimmed = line.trim();
 
-      if (trimmed.trim().isEmpty) {
+      if (trimmed.isEmpty) {
         index++;
         continue;
       }
 
-      if (trimmed.trim() == '---') {
+      if (trimmed == '---') {
         blocks.add(const MarkdownBlock(type: MarkdownBlockType.divider));
         index++;
         continue;
       }
 
-      if (trimmed.trim() == r'$$') {
+      if (trimmed == r'$$') {
         final buffer = <String>[];
         index++;
         while (index < lines.length && lines[index].trim() != r'$$') {
@@ -50,7 +50,7 @@ class MarkdownParser {
         final meta = trimmed.substring(3).trim();
         final buffer = <String>[];
         index++;
-        while (index < lines.length && !lines[index].startsWith('```')) {
+        while (index < lines.length && !lines[index].trim().startsWith('```')) {
           buffer.add(lines[index]);
           index++;
         }
@@ -103,8 +103,8 @@ class MarkdownParser {
       if (trimmed.startsWith('> ')) {
         final buffer = <String>[];
         while (index < lines.length &&
-            lines[index].trimLeft().startsWith('> ')) {
-          buffer.add(lines[index].trimLeft().substring(2));
+            lines[index].trim().startsWith('> ')) {
+          buffer.add(lines[index].trim().substring(2));
           index++;
         }
         blocks.add(
@@ -117,12 +117,13 @@ class MarkdownParser {
         final items = <String>[];
         final checked = <bool>[];
         while (index < lines.length &&
-            _isChecklistLine(lines[index].trimLeft())) {
-          final current = lines[index].trimLeft();
+            _isChecklistLine(lines[index].trim())) {
+          final current = lines[index].trim();
+          final markerLength = _checklistMarkerLength(current);
           checked.add(
-            current.startsWith('- [x] ') || current.startsWith('- [X] '),
+            current.contains('[x] ') || current.contains('[X] '),
           );
-          items.add(current.substring(6).trim());
+          items.add(current.substring(markerLength).trim());
           index++;
         }
         blocks.add(
@@ -135,11 +136,11 @@ class MarkdownParser {
         continue;
       }
 
-      if (trimmed.startsWith('- ')) {
+      if (_isUnorderedListLine(trimmed)) {
         final items = <String>[];
         while (index < lines.length &&
-            lines[index].trimLeft().startsWith('- ')) {
-          items.add(lines[index].trimLeft().substring(2).trim());
+            _isUnorderedListLine(lines[index].trim())) {
+          items.add(lines[index].trim().substring(2).trim());
           index++;
         }
         blocks.add(
@@ -151,8 +152,8 @@ class MarkdownParser {
       if (_isNumberedListLine(trimmed)) {
         final items = <String>[];
         while (index < lines.length &&
-            _isNumberedListLine(lines[index].trimLeft())) {
-          final current = lines[index].trimLeft();
+            _isNumberedListLine(lines[index].trim())) {
+          final current = lines[index].trim();
           final dotIndex = current.indexOf('.');
           items.add(current.substring(dotIndex + 1).trim());
           index++;
@@ -182,6 +183,13 @@ class MarkdownParser {
       }
 
       final paragraphLines = <String>[];
+      // Always consume at least one line if we've reached this point, 
+      // even if _startsNewBlock would return true. This prevents infinite loops 
+      // when a line looks like a block but isn't handled by any of the specific 
+      // block type handlers above.
+      paragraphLines.add(lines[index].trimRight());
+      index++;
+
       while (index < lines.length && !_startsNewBlock(lines[index])) {
         final current = lines[index].trimRight();
         if (current.trim().isNotEmpty) {
@@ -201,7 +209,7 @@ class MarkdownParser {
   }
 
   bool _startsNewBlock(String line) {
-    final trimmed = line.trimLeft();
+    final trimmed = line.trim();
     return trimmed.isEmpty ||
         trimmed == '---' ||
         trimmed.startsWith('```') ||
@@ -210,7 +218,7 @@ class MarkdownParser {
         trimmed.startsWith('## ') ||
         trimmed.startsWith('### ') ||
         trimmed.startsWith('> ') ||
-        trimmed.startsWith('- ') ||
+        _isUnorderedListLine(trimmed) ||
         _isTableHeader(trimmed, 0, [trimmed, '']) ||
         _isChecklistLine(trimmed) ||
         _isNumberedListLine(trimmed);
@@ -219,7 +227,22 @@ class MarkdownParser {
   bool _isChecklistLine(String line) {
     return line.startsWith('- [ ] ') ||
         line.startsWith('- [x] ') ||
-        line.startsWith('- [X] ');
+        line.startsWith('- [X] ') ||
+        line.startsWith('* [ ] ') ||
+        line.startsWith('* [x] ') ||
+        line.startsWith('* [X] ') ||
+        line.startsWith('+ [ ] ') ||
+        line.startsWith('+ [x] ') ||
+        line.startsWith('+ [X] ');
+  }
+
+  int _checklistMarkerLength(String line) {
+    // Supported forms are "<list-marker> [ ] ", "<list-marker> [x] ", "<list-marker> [X] ".
+    return 6;
+  }
+
+  bool _isUnorderedListLine(String line) {
+    return line.startsWith('- ') || line.startsWith('* ') || line.startsWith('+ ');
   }
 
   bool _isNumberedListLine(String line) {
@@ -237,9 +260,11 @@ class MarkdownParser {
 
   bool _isTableRow(String line) {
     final trimmed = line.trim();
+    final firstPipe = trimmed.indexOf('|');
+    final secondPipe = trimmed.indexOf('|', firstPipe + 1);
     return trimmed.startsWith('|') &&
         trimmed.endsWith('|') &&
-        trimmed.contains('|');
+        secondPipe != -1;
   }
 
   bool _isTableDivider(String line) {
@@ -250,9 +275,9 @@ class MarkdownParser {
   }
 
   List<String> _parseTableCells(String line) {
-    return line
-        .trim()
-        .substring(1, line.trim().length - 1)
+    final trimmed = line.trim();
+    return trimmed
+        .substring(1, trimmed.length - 1)
         .split('|')
         .map((cell) => cell.trim())
         .toList();

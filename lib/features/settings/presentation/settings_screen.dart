@@ -1,17 +1,24 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/services/backup_service.dart';
+
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({
     super.key,
     required this.isDarkMode,
     required this.onDarkModeChanged,
+    required this.onImportComplete,
   });
 
   final bool isDarkMode;
   final ValueChanged<bool> onDarkModeChanged;
+  final VoidCallback onImportComplete;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final backupService = BackupService();
+
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
@@ -29,6 +36,63 @@ class SettingsScreen extends StatelessWidget {
               ),
               value: isDarkMode,
               onChanged: onDarkModeChanged,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Data & Backup', style: theme.textTheme.titleLarge),
+                  const SizedBox(height: 16),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.backup_outlined),
+                    title: const Text('Create Backup'),
+                    subtitle: const Text('Export all notes, todos and settings to a JSON file.'),
+                    onTap: () async {
+                      try {
+                        await backupService.createBackup();
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Backup created successfully')),
+                        );
+                      } catch (e) {
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Backup failed: $e')),
+                        );
+                      }
+                    },
+                  ),
+                  const Divider(),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.restore_outlined),
+                    title: const Text('Import Backup'),
+                    subtitle: const Text('Restore your data from a previously created backup file.'),
+                    onTap: () async {
+                      try {
+                        final success = await backupService.importBackup();
+                        if (success) {
+                          onImportComplete();
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Import completed successfully')),
+                          );
+                        }
+                      } catch (e) {
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Import failed: $e')),
+                        );
+                      }
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 16),

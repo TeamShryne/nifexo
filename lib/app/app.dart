@@ -9,6 +9,10 @@ import '../features/settings/presentation/settings_screen.dart';
 import '../features/todos/presentation/todos_screen.dart';
 import 'theme.dart';
 
+import '../core/repositories/note_repository.dart';
+import '../core/repositories/todo_repository.dart';
+import '../core/repositories/settings_repository.dart';
+
 class NifexoApp extends StatefulWidget {
   const NifexoApp({super.key});
 
@@ -18,6 +22,22 @@ class NifexoApp extends StatefulWidget {
 
 class _NifexoAppState extends State<NifexoApp> {
   ThemeMode _themeMode = ThemeMode.light;
+  final _settingsRepository = SettingsRepository();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final themeMode = await _settingsRepository.getSetting('themeMode');
+    if (themeMode != null) {
+      setState(() {
+        _themeMode = themeMode == 'dark' ? ThemeMode.dark : ThemeMode.light;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,9 +49,11 @@ class _NifexoAppState extends State<NifexoApp> {
       themeMode: _themeMode,
       home: AlphaShell(
         isDarkMode: _themeMode == ThemeMode.dark,
-        onThemeModeChanged: (enabled) {
+        onThemeModeChanged: (enabled) async {
+          final newMode = enabled ? ThemeMode.dark : ThemeMode.light;
+          await _settingsRepository.setSetting('themeMode', enabled ? 'dark' : 'light');
           setState(() {
-            _themeMode = enabled ? ThemeMode.dark : ThemeMode.light;
+            _themeMode = newMode;
           });
         },
       ),
@@ -55,142 +77,152 @@ class AlphaShell extends StatefulWidget {
 
 class _AlphaShellState extends State<AlphaShell> {
   int _currentIndex = 0;
-  final List<Note> _notes = [];
-  final List<TodoItem> _todos = [];
+  List<Note> _notes = [];
+  List<TodoItem> _todos = [];
 
-  void _createNote(NoteDraft draft) {
+  final _noteRepository = NoteRepository();
+  final _todoRepository = TodoRepository();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    final notes = await _noteRepository.getAllNotes();
+    final todos = await _todoRepository.getAllTodos();
+    setState(() {
+      _notes = notes;
+      _todos = todos;
+    });
+  }
+
+  Future<void> _createNote(NoteDraft draft) async {
     final now = DateTime.now();
     final title = draft.title.trim().isEmpty
         ? 'Untitled note'
         : draft.title.trim();
-    setState(() {
-      _notes.insert(
-        0,
-        Note(
-          id: 'note-${now.microsecondsSinceEpoch}',
-          title: title,
-          contentMd: draft.content.trim(),
-          tags: draft.tags,
-          createdAt: now,
-          updatedAt: now,
-        ),
-      );
-    });
+    final note = Note(
+      id: 'note-${now.microsecondsSinceEpoch}',
+      title: title,
+      contentMd: draft.content.trim(),
+      tags: draft.tags,
+      createdAt: now,
+      updatedAt: now,
+    );
+    await _noteRepository.insertNote(note);
+    await _loadData();
   }
 
-  void _updateNote(String noteId, NoteDraft draft) {
+  Future<void> _updateNote(String noteId, NoteDraft draft) async {
     final index = _notes.indexWhere((note) => note.id == noteId);
     if (index == -1) return;
 
-    setState(() {
-      _notes[index] = _notes[index].copyWith(
-        title: draft.title.trim().isEmpty
-            ? 'Untitled note'
-            : draft.title.trim(),
-        contentMd: draft.content.trim(),
-        tags: draft.tags,
-        updatedAt: DateTime.now(),
-      );
-    });
+    final updatedNote = _notes[index].copyWith(
+      title: draft.title.trim().isEmpty
+          ? 'Untitled note'
+          : draft.title.trim(),
+      contentMd: draft.content.trim(),
+      tags: draft.tags,
+      updatedAt: DateTime.now(),
+    );
+    await _noteRepository.updateNote(updatedNote);
+    await _loadData();
   }
 
-  void _deleteNote(String noteId) {
-    setState(() {
-      _notes.removeWhere((note) => note.id == noteId);
-    });
+  Future<void> _deleteNote(String noteId) async {
+    await _noteRepository.deleteNote(noteId);
+    await _loadData();
   }
 
-  void _toggleNotePinned(String noteId) {
+  Future<void> _toggleNotePinned(String noteId) async {
     final index = _notes.indexWhere((note) => note.id == noteId);
     if (index == -1) return;
 
-    setState(() {
-      final note = _notes[index];
-      _notes[index] = note.copyWith(
-        isPinned: !note.isPinned,
-        updatedAt: DateTime.now(),
-      );
-    });
+    final note = _notes[index];
+    final updatedNote = note.copyWith(
+      isPinned: !note.isPinned,
+      updatedAt: DateTime.now(),
+    );
+    await _noteRepository.updateNote(updatedNote);
+    await _loadData();
   }
 
-  void _createTodo(TodoDraft draft) {
+  Future<void> _createTodo(TodoDraft draft) async {
     final now = DateTime.now();
-    setState(() {
-      _todos.insert(
-        0,
-        TodoItem(
-          id: 'todo-${now.microsecondsSinceEpoch}',
-          title: draft.title.trim(),
-          description: draft.description.trim(),
-          tags: draft.tags,
-          createdAt: now,
-          updatedAt: now,
-          dueDate: draft.dueDate,
-          priority: draft.priority,
-        ),
-      );
-    });
+    final todo = TodoItem(
+      id: 'todo-${now.microsecondsSinceEpoch}',
+      title: draft.title.trim(),
+      description: draft.description.trim(),
+      tags: draft.tags,
+      createdAt: now,
+      updatedAt: now,
+      dueDate: draft.dueDate,
+      priority: draft.priority,
+    );
+    await _todoRepository.insertTodo(todo);
+    await _loadData();
   }
 
-  void _updateTodo(String todoId, TodoDraft draft) {
+  Future<void> _updateTodo(String todoId, TodoDraft draft) async {
     final index = _todos.indexWhere((todo) => todo.id == todoId);
     if (index == -1) return;
 
-    setState(() {
-      _todos[index] = _todos[index].copyWith(
-        title: draft.title.trim(),
-        description: draft.description.trim(),
-        dueDate: draft.dueDate,
-        tags: draft.tags,
-        priority: draft.priority,
-        updatedAt: DateTime.now(),
-      );
-    });
+    final updatedTodo = _todos[index].copyWith(
+      title: draft.title.trim(),
+      description: draft.description.trim(),
+      dueDate: draft.dueDate,
+      tags: draft.tags,
+      priority: draft.priority,
+      updatedAt: DateTime.now(),
+    );
+    await _todoRepository.updateTodo(updatedTodo);
+    await _loadData();
   }
 
-  void _toggleTodoDone(String todoId, bool isDone) {
+  Future<void> _toggleTodoDone(String todoId, bool isDone) async {
     final index = _todos.indexWhere((todo) => todo.id == todoId);
     if (index == -1) return;
 
-    setState(() {
-      _todos[index] = _todos[index].copyWith(
-        isDone: isDone,
-        updatedAt: DateTime.now(),
-      );
-    });
+    final updatedTodo = _todos[index].copyWith(
+      isDone: isDone,
+      updatedAt: DateTime.now(),
+    );
+    await _todoRepository.updateTodo(updatedTodo);
+    await _loadData();
   }
 
-  void _deleteTodo(String todoId) {
-    setState(() {
-      _todos.removeWhere((todo) => todo.id == todoId);
-    });
+  Future<void> _deleteTodo(String todoId) async {
+    await _todoRepository.deleteTodo(todoId);
+    await _loadData();
   }
 
-  void _toggleTodoPinned(String todoId) {
+  Future<void> _toggleTodoPinned(String todoId) async {
     final index = _todos.indexWhere((todo) => todo.id == todoId);
     if (index == -1) return;
 
-    setState(() {
-      final todo = _todos[index];
-      _todos[index] = todo.copyWith(
-        isPinned: !todo.isPinned,
-        updatedAt: DateTime.now(),
-      );
-    });
+    final todo = _todos[index];
+    final updatedTodo = todo.copyWith(
+      isPinned: !todo.isPinned,
+      updatedAt: DateTime.now(),
+    );
+    await _todoRepository.updateTodo(updatedTodo);
+    await _loadData();
   }
 
   Future<void> _handlePrimaryAction() async {
     if (_currentIndex == 2) {
       final draft = await showTodoEditor(context);
       if (draft != null) {
-        _createTodo(draft);
+        await _createTodo(draft);
       }
       return;
     }
 
     final draft = await openNoteEditorPage(context, startInEditMode: true);
     if (draft != null) {
-      _createNote(draft);
+      await _createNote(draft);
     }
   }
 
@@ -217,6 +249,7 @@ class _AlphaShellState extends State<AlphaShell> {
       SettingsScreen(
         isDarkMode: widget.isDarkMode,
         onDarkModeChanged: widget.onThemeModeChanged,
+        onImportComplete: _loadData,
       ),
     ];
 

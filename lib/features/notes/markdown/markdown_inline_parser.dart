@@ -95,6 +95,35 @@ class MarkdownInlineParser {
         }
       }
 
+      if (text[index] == '*') {
+        final isDoubleAsterisk =
+            index + 1 < text.length && text[index + 1] == '*';
+        final nextIsWhitespace =
+            index + 1 < text.length && text[index + 1].trim().isEmpty;
+        if (isDoubleAsterisk) {
+          buffer.write(text[index]);
+          index++;
+          continue;
+        }
+        if (nextIsWhitespace) {
+          buffer.write(text[index]);
+          index++;
+          continue;
+        }
+        final end = text.indexOf('*', index + 1);
+        if (end != -1 && end > index + 1) {
+          flush();
+          nodes.add(
+            MarkdownInlineNode(
+              text: text.substring(index + 1, end),
+              isItalic: true,
+            ),
+          );
+          index = end + 1;
+          continue;
+        }
+      }
+
       if (text[index] == '`') {
         final end = text.indexOf('`', index + 1);
         if (end != -1) {

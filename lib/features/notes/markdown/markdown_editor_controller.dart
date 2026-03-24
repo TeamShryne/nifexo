@@ -29,7 +29,7 @@ class MarkdownEditorController {
       ),
       MarkdownShortcutType.italic => _wrapSelection(
         selectedText,
-        '_',
+        '*',
         fallback: 'italic text',
       ),
       MarkdownShortcutType.strikethrough => _wrapSelection(
@@ -59,7 +59,7 @@ class MarkdownEditorController {
       MarkdownShortcutType.divider => _insertDivider(selectedText),
     };
 
-    controller.value = value.replaced(
+    controller.value = _ReplacedExtension(value).replaced(
       TextRange(start: start, end: end),
       replacement,
     );
@@ -112,7 +112,7 @@ class MarkdownEditorController {
   }
 }
 
-extension on TextEditingValue {
+extension _ReplacedExtension on TextEditingValue {
   TextEditingValue replaced(TextRange range, String replacement) {
     final newText = text.replaceRange(range.start, range.end, replacement);
     final caretOffset = range.start + replacement.length;

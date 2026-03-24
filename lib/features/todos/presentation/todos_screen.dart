@@ -14,11 +14,11 @@ class TodosScreen extends StatelessWidget {
   });
 
   final List<TodoItem> todos;
-  final ValueChanged<TodoDraft> onCreate;
-  final void Function(String todoId, TodoDraft draft) onUpdate;
-  final void Function(String todoId, bool isDone) onToggleDone;
-  final ValueChanged<String> onDelete;
-  final ValueChanged<String> onTogglePinned;
+  final Future<void> Function(TodoDraft) onCreate;
+  final Future<void> Function(String todoId, TodoDraft draft) onUpdate;
+  final Future<void> Function(String todoId, bool isDone) onToggleDone;
+  final Future<void> Function(String todoId) onDelete;
+  final Future<void> Function(String todoId) onTogglePinned;
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +35,7 @@ class TodosScreen extends StatelessWidget {
               onPressed: () async {
                 final draft = await showTodoEditor(context);
                 if (draft != null) {
-                  onCreate(draft);
+                  await onCreate(draft);
                 }
               },
               icon: const Icon(Icons.add_rounded),
@@ -81,10 +81,10 @@ class _TodoList extends StatelessWidget {
   });
 
   final List<TodoItem> todos;
-  final void Function(String todoId, TodoDraft draft) onUpdate;
-  final void Function(String todoId, bool isDone) onToggleDone;
-  final ValueChanged<String> onDelete;
-  final ValueChanged<String> onTogglePinned;
+  final Future<void> Function(String todoId, TodoDraft draft) onUpdate;
+  final Future<void> Function(String todoId, bool isDone) onToggleDone;
+  final Future<void> Function(String todoId) onDelete;
+  final Future<void> Function(String todoId) onTogglePinned;
 
   Color _priorityColor(TodoPriority priority) {
     switch (priority) {
@@ -123,12 +123,12 @@ class _TodoList extends StatelessWidget {
             onTap: () async {
               final draft = await showTodoEditor(context, initial: todo);
               if (draft != null) {
-                onUpdate(todo.id, draft);
+                await onUpdate(todo.id, draft);
               }
             },
             child: CheckboxListTile(
               value: todo.isDone,
-              onChanged: (value) => onToggleDone(todo.id, value ?? false),
+              onChanged: (value) async => await onToggleDone(todo.id, value ?? false),
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 20,
                 vertical: 12,
@@ -137,14 +137,14 @@ class _TodoList extends StatelessWidget {
                 children: [
                   Expanded(child: Text(todo.title)),
                   IconButton(
-                    onPressed: () => onTogglePinned(todo.id),
+                    onPressed: () async => await onTogglePinned(todo.id),
                     icon: Icon(
                       todo.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
                       size: 18,
                     ),
                   ),
                   IconButton(
-                    onPressed: () => onDelete(todo.id),
+                    onPressed: () async => await onDelete(todo.id),
                     icon: const Icon(Icons.delete_outline),
                   ),
                 ],
@@ -262,7 +262,7 @@ Future<TodoDraft?> showTodoEditor(BuildContext context, {TodoItem? initial}) {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<TodoPriority>(
-                    value: priority,
+                    initialValue: priority,
                     items: const [
                       DropdownMenuItem(
                         value: TodoPriority.low,

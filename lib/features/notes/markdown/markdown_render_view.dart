@@ -73,7 +73,7 @@ class _MarkdownRenderViewState extends State<MarkdownRenderView> {
         block: _blocks[index],
         inlineParser: _inlineParser,
       ),
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      separatorBuilder: (context, index) => const SizedBox(height: 12),
       itemCount: _blocks.length,
     );
   }
@@ -131,7 +131,7 @@ class _MarkdownRenderSliverState extends State<MarkdownRenderSliver> {
           block: _blocks[index],
           inlineParser: _inlineParser,
         ),
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        separatorBuilder: (context, index) => const SizedBox(height: 12),
         itemCount: _blocks.length,
       ),
     );
