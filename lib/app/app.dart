@@ -49,7 +49,7 @@ class _NifexoAppState extends State<NifexoApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Nifexo',
+      title: 'Nifexo Alpha',
       debugShowCheckedModeBanner: false,
       theme: buildNifexoTheme(brightness: Brightness.light),
       darkTheme: buildNifexoTheme(brightness: Brightness.dark),

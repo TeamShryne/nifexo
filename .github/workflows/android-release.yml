@@ -5,6 +5,9 @@ on:
   push:
     tags:
       - 'v*'
+    branches:
+      - main
+      - master
 
 concurrency:
   group: android-release-${{ github.ref }}
@@ -32,7 +35,11 @@ jobs:
 
       - name: Decode Keystore
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/release.keystore
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/release.keystore
+          else
+            echo "Warning: KEYSTORE_BASE64 secret not found. Build will use debug signing."
+          fi
 
       - name: Install dependencies
         run: flutter pub get
@@ -53,14 +60,32 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
 
-      - name: Upload release APK
-        uses: actions/upload-artifact@v4
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
         with:
-          name: nifexo-release-apk
-          path: build/app/outputs/flutter-apk/*.apk
+          files: |
+            build/app/outputs/flutter-apk/*.apk
+            build/app/outputs/bundle/release/*.aab
+          draft: false
+          prerelease: true
+          name: Nifexo Alpha ${{ github.ref_name }}
+          body: |
+            ## Nifexo Alpha Release
+            
+            This is an automated alpha release.
+            
+            ### Artifacts
+            - **APK**: Split by ABI (arm64-v8a, armeabi-v7a, x86_64)
+            - **AAB**: Universal App Bundle for Play Store
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload release Bundle
+      - name: Upload artifacts
+        if: "!startsWith(github.ref, 'refs/tags/v')"
         uses: actions/upload-artifact@v4
         with:
-          name: nifexo-release-bundle
-          path: build/app/outputs/bundle/release/*.aab
+          name: nifexo-release-artifacts
+          path: |
+            build/app/outputs/flutter-apk/*.apk
+            build/app/outputs/bundle/release/*.aab
