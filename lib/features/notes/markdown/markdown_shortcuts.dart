@@ -65,6 +65,11 @@ class MarkdownShortcuts {
       icon: Icons.data_object,
     ),
     MarkdownShortcut(
+      type: MarkdownShortcutType.math,
+      label: 'Math',
+      icon: Icons.functions,
+    ),
+    MarkdownShortcut(
       type: MarkdownShortcutType.link,
       label: 'Link',
       icon: Icons.link,

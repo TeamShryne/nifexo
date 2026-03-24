@@ -193,33 +193,40 @@ class MarkdownEditingController extends TextEditingController {
     String text,
     TextStyle? baseStyle,
   ) {
-    return _inlineParser
-        .parse(text)
-        .map(
-          (node) => TextSpan(
-            text: node.text,
-            style: baseStyle?.copyWith(
-              fontWeight: node.isBold ? FontWeight.w700 : baseStyle.fontWeight,
-              fontStyle: node.isItalic || node.isInlineMath
-                  ? FontStyle.italic
-                  : baseStyle.fontStyle,
-              decoration: node.isStrikethrough
-                  ? TextDecoration.lineThrough
-                  : baseStyle.decoration,
-              color: node.linkUrl != null
-                  ? theme.colorScheme.primary
-                  : baseStyle.color,
-              fontFamily: node.isInlineCode || node.isInlineMath
-                  ? 'monospace'
-                  : baseStyle.fontFamily,
-              backgroundColor: node.isInlineCode
-                  ? theme.colorScheme.surfaceContainerHighest
-                  : node.isInlineMath
-                  ? theme.colorScheme.surfaceContainerLow
-                  : baseStyle.backgroundColor,
-            ),
-          ),
-        )
-        .toList();
+    final mutedStyle = baseStyle?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+      fontWeight: FontWeight.normal,
+    );
+
+    return _inlineParser.parse(text).expand((node) {
+      final nodeStyle = baseStyle?.copyWith(
+        fontWeight: node.isBold ? FontWeight.w700 : baseStyle.fontWeight,
+        fontStyle: node.isItalic || node.isInlineMath
+            ? FontStyle.italic
+            : baseStyle.fontStyle,
+        decoration: node.isStrikethrough
+            ? TextDecoration.lineThrough
+            : baseStyle.decoration,
+        color: node.linkUrl != null
+            ? theme.colorScheme.primary
+            : baseStyle.color,
+        fontFamily: node.isInlineCode || node.isInlineMath
+            ? 'monospace'
+            : baseStyle.fontFamily,
+        backgroundColor: node.isInlineCode
+            ? theme.colorScheme.surfaceContainerHighest
+            : node.isInlineMath
+            ? theme.colorScheme.surfaceContainerLow
+            : baseStyle.backgroundColor,
+      );
+
+      return [
+        if (node.leadingMarker.isNotEmpty)
+          TextSpan(text: node.leadingMarker, style: mutedStyle),
+        TextSpan(text: node.text, style: nodeStyle),
+        if (node.trailingMarker.isNotEmpty)
+          TextSpan(text: node.trailingMarker, style: mutedStyle),
+      ];
+    }).toList();
   }
 }

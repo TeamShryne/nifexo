@@ -13,6 +13,7 @@ enum MarkdownShortcutType {
   checklist,
   inlineCode,
   codeBlock,
+  math,
   link,
   divider,
 }

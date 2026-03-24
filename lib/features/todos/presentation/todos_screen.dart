@@ -169,6 +169,11 @@ class _TodoList extends StatelessWidget {
                         label: 'Due ${dueDate.day}/${dueDate.month}',
                         color: const Color(0xFF0E7C66),
                       ),
+                    if (todo.reminderAt != null)
+                      _InfoPill(
+                        label: 'Reminder ${todo.reminderAt!.day}/${todo.reminderAt!.month} ${todo.reminderAt!.hour}:${todo.reminderAt!.minute.toString().padLeft(2, '0')}',
+                        color: const Color(0xFF8B5CF6),
+                      ),
                     ...todo.tags.map(
                       (tag) => _InfoPill(
                         label: '#$tag',
@@ -196,6 +201,7 @@ class TodoDraft {
     required this.priority,
     required this.tags,
     this.dueDate,
+    this.reminderAt,
   });
 
   final String title;
@@ -203,6 +209,7 @@ class TodoDraft {
   final TodoPriority priority;
   final List<String> tags;
   final DateTime? dueDate;
+  final DateTime? reminderAt;
 }
 
 Future<TodoDraft?> showTodoEditor(BuildContext context, {TodoItem? initial}) {
@@ -218,116 +225,178 @@ Future<TodoDraft?> showTodoEditor(BuildContext context, {TodoItem? initial}) {
         ? ''
         : '${initial!.dueDate!.year}-${initial.dueDate!.month.toString().padLeft(2, '0')}-${initial.dueDate!.day.toString().padLeft(2, '0')}',
   );
+  
+  DateTime? reminderAt = initial?.reminderAt;
   var priority = initial?.priority ?? TodoPriority.medium;
   final formKey = GlobalKey<FormState>();
 
-  return showModalBottomSheet<TodoDraft>(
+  return showGeneralDialog<TodoDraft>(
     context: context,
-    isScrollControlled: true,
-    builder: (context) {
-      return StatefulBuilder(
-        builder: (context, setModalState) {
-          return Padding(
-            padding: EdgeInsets.only(
-              left: 20,
-              right: 20,
-              top: 20,
-              bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+    barrierDismissible: true,
+    barrierLabel: 'Close',
+    pageBuilder: (context, animation, secondaryAnimation) {
+      return Center(
+        child: SingleChildScrollView(
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 400),
+            margin: EdgeInsets.only(
+              left: 24,
+              right: 24,
+              top: 24,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 24,
             ),
-            child: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    initial == null ? 'New todo' : 'Edit todo',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: titleController,
-                    decoration: const InputDecoration(labelText: 'Title'),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Title is required';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: descriptionController,
-                    decoration: const InputDecoration(labelText: 'Description'),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<TodoPriority>(
-                    initialValue: priority,
-                    items: const [
-                      DropdownMenuItem(
-                        value: TodoPriority.low,
-                        child: Text('Low priority'),
-                      ),
-                      DropdownMenuItem(
-                        value: TodoPriority.medium,
-                        child: Text('Medium priority'),
-                      ),
-                      DropdownMenuItem(
-                        value: TodoPriority.high,
-                        child: Text('High priority'),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) {
-                        setModalState(() {
-                          priority = value;
-                        });
-                      }
-                    },
-                    decoration: const InputDecoration(labelText: 'Priority'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: dueDateController,
-                    decoration: const InputDecoration(
-                      labelText: 'Due date',
-                      hintText: 'YYYY-MM-DD',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: tagsController,
-                    decoration: const InputDecoration(
-                      labelText: 'Tags',
-                      hintText: 'work, personal',
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: () {
-                        if (!formKey.currentState!.validate()) return;
-                        Navigator.of(context).pop(
-                          TodoDraft(
-                            title: titleController.text,
-                            description: descriptionController.text,
-                            priority: priority,
-                            dueDate: _parseDate(dueDateController.text),
-                            tags: _parseTodoTags(tagsController.text),
+            child: AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+              title: Text(initial == null ? 'New todo' : 'Edit todo'),
+              content: StatefulBuilder(
+                builder: (context, setModalState) {
+                  return Form(
+                    key: formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextFormField(
+                          controller: titleController,
+                          decoration: const InputDecoration(labelText: 'Title'),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Title is required';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: descriptionController,
+                          decoration: const InputDecoration(labelText: 'Description'),
+                        ),
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<TodoPriority>(
+                          initialValue: priority,
+                          items: const [
+                            DropdownMenuItem(
+                              value: TodoPriority.low,
+                              child: Text('Low priority'),
+                            ),
+                            DropdownMenuItem(
+                              value: TodoPriority.medium,
+                              child: Text('Medium priority'),
+                            ),
+                            DropdownMenuItem(
+                              value: TodoPriority.high,
+                              child: Text('High priority'),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) {
+                              setModalState(() {
+                                priority = value;
+                              });
+                            }
+                          },
+                          decoration: const InputDecoration(labelText: 'Priority'),
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: dueDateController,
+                          decoration: const InputDecoration(
+                            labelText: 'Due date',
+                            hintText: 'YYYY-MM-DD',
                           ),
-                        );
-                      },
-                      child: Text(
-                        initial == null ? 'Create todo' : 'Save todo',
-                      ),
+                        ),
+                        const SizedBox(height: 12),
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Reminder'),
+                          subtitle: Text(reminderAt == null
+                              ? 'No reminder set'
+                              : '${reminderAt!.day}/${reminderAt!.month} ${reminderAt!.hour}:${reminderAt!.minute.toString().padLeft(2, '0')}'),
+                          trailing: IconButton(
+                            icon: Icon(reminderAt == null
+                                ? Icons.add_alarm
+                                : Icons.alarm_off),
+                            onPressed: () async {
+                              if (reminderAt == null) {
+                                final date = await showDatePicker(
+                                  context: context,
+                                  initialDate: DateTime.now(),
+                                  firstDate: DateTime.now(),
+                                  lastDate: DateTime.now().add(const Duration(days: 365)),
+                                );
+                                if (date != null) {
+                                  if (!context.mounted) return;
+                                  final time = await showTimePicker(
+                                    context: context,
+                                    initialTime: TimeOfDay.now(),
+                                  );
+                                  if (time != null) {
+                                    setModalState(() {
+                                      reminderAt = DateTime(
+                                        date.year,
+                                        date.month,
+                                        date.day,
+                                        time.hour,
+                                        time.minute,
+                                      );
+                                    });
+                                  }
+                                }
+                              } else {
+                                setModalState(() {
+                                  reminderAt = null;
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: tagsController,
+                          decoration: const InputDecoration(
+                            labelText: 'Tags',
+                            hintText: 'work, personal',
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+                  );
+                },
               ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    if (!formKey.currentState!.validate()) return;
+                    Navigator.of(context).pop(
+                      TodoDraft(
+                        title: titleController.text,
+                        description: descriptionController.text,
+                        priority: priority,
+                        dueDate: _parseDate(dueDateController.text),
+                        reminderAt: reminderAt,
+                        tags: _parseTodoTags(tagsController.text),
+                      ),
+                    );
+                  },
+                  child: Text(initial == null ? 'Create' : 'Save'),
+                ),
+              ],
             ),
-          );
-        },
+          ),
+        ),
+      );
+    },
+    transitionDuration: const Duration(milliseconds: 200),
+    transitionBuilder: (context, animation, secondaryAnimation, child) {
+      return FadeTransition(
+        opacity: animation,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.9, end: 1.0).animate(animation),
+          child: child,
+        ),
       );
     },
   );

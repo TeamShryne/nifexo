@@ -55,14 +55,16 @@ class MarkdownEditorController {
         fallback: 'code',
       ),
       MarkdownShortcutType.codeBlock => _wrapCodeBlock(selectedText),
+      MarkdownShortcutType.math => _applyMath(selectedText),
       MarkdownShortcutType.link => _applyLink(selectedText),
       MarkdownShortcutType.divider => _insertDivider(selectedText),
     };
 
-    controller.value = _ReplacedExtension(value).replaced(
+    final newValue = value.replaced(
       TextRange(start: start, end: end),
       replacement,
     );
+    controller.value = newValue;
   }
 
   String _applyLinePrefix(
@@ -98,6 +100,15 @@ class MarkdownEditorController {
     return '```\n$content\n```';
   }
 
+  String _applyMath(String selectedText) {
+    if (selectedText.contains('\n')) {
+      final content = selectedText.isEmpty ? 'E = mc^2' : selectedText;
+      return '\$\$\n$content\n\$\$';
+    }
+    final content = selectedText.isEmpty ? r'x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}' : selectedText;
+    return '\$$content\$';
+  }
+
   String _applyLink(String selectedText) {
     final content = selectedText.isEmpty ? 'link text' : selectedText;
     return '[$content](https://)';
@@ -112,7 +123,7 @@ class MarkdownEditorController {
   }
 }
 
-extension _ReplacedExtension on TextEditingValue {
+extension _TextEditingValueExtension on TextEditingValue {
   TextEditingValue replaced(TextRange range, String replacement) {
     final newText = text.replaceRange(range.start, range.end, replacement);
     final caretOffset = range.start + replacement.length;

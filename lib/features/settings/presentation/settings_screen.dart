@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_displaymode/flutter_displaymode.dart';
 
 import '../../../core/services/backup_service.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
     super.key,
     required this.isDarkMode,
@@ -15,6 +17,43 @@ class SettingsScreen extends StatelessWidget {
   final VoidCallback onImportComplete;
 
   @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  bool _highRefreshRate = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkRefreshRate();
+  }
+
+  Future<void> _checkRefreshRate() async {
+    if (!Platform.isAndroid) return;
+    try {
+      final active = await FlutterDisplayMode.active;
+      final modes = await FlutterDisplayMode.supported;
+      final highest = modes.reduce((a, b) => a.refreshRate > b.refreshRate ? a : b);
+      setState(() {
+        _highRefreshRate = active.refreshRate >= highest.refreshRate;
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _toggleHighRefreshRate(bool enabled) async {
+    if (!Platform.isAndroid) return;
+    try {
+      if (enabled) {
+        await FlutterDisplayMode.setHighRefreshRate();
+      } else {
+        await FlutterDisplayMode.setLowRefreshRate();
+      }
+      await _checkRefreshRate();
+    } catch (_) {}
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final backupService = BackupService();
@@ -25,17 +64,36 @@ class SettingsScreen extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
         children: [
           Card(
-            child: SwitchListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 8,
-              ),
-              title: const Text('Dark mode'),
-              subtitle: const Text(
-                'Switch between the current light and dark app themes.',
-              ),
-              value: isDarkMode,
-              onChanged: onDarkModeChanged,
+            child: Column(
+              children: [
+                SwitchListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 8,
+                  ),
+                  title: const Text('Dark mode'),
+                  subtitle: const Text(
+                    'Switch between light and dark themes.',
+                  ),
+                  value: widget.isDarkMode,
+                  onChanged: widget.onDarkModeChanged,
+                ),
+                if (Platform.isAndroid) ...[
+                  const Divider(height: 1),
+                  SwitchListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 8,
+                    ),
+                    title: const Text('High refresh rate'),
+                    subtitle: const Text(
+                      'Enable 120Hz or highest supported mode.',
+                    ),
+                    value: _highRefreshRate,
+                    onChanged: _toggleHighRefreshRate,
+                  ),
+                ],
+              ],
             ),
           ),
           const SizedBox(height: 16),
@@ -51,13 +109,13 @@ class SettingsScreen extends StatelessWidget {
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.backup_outlined),
                     title: const Text('Create Backup'),
-                    subtitle: const Text('Export all notes, todos and settings to a JSON file.'),
+                    subtitle: const Text('Export all data to a JSON file.'),
                     onTap: () async {
                       try {
                         await backupService.createBackup();
                         if (!context.mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Backup created successfully')),
+                          const SnackBar(content: Text('Backup created')),
                         );
                       } catch (e) {
                         if (!context.mounted) return;
@@ -72,15 +130,15 @@ class SettingsScreen extends StatelessWidget {
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.restore_outlined),
                     title: const Text('Import Backup'),
-                    subtitle: const Text('Restore your data from a previously created backup file.'),
+                    subtitle: const Text('Restore data from a JSON file.'),
                     onTap: () async {
                       try {
                         final success = await backupService.importBackup();
                         if (success) {
-                          onImportComplete();
+                          widget.onImportComplete();
                           if (!context.mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Import completed successfully')),
+                            const SnackBar(content: Text('Import completed')),
                           );
                         }
                       } catch (e) {

@@ -23,8 +23,13 @@ class AppDatabase {
       databaseFactory = databaseFactoryFfi;
     }
 
-    final documentsDirectory = await getApplicationDocumentsDirectory();
-    final path = join(documentsDirectory.path, 'nifexo.db');
+    final String path;
+    if (Platform.environment.containsKey('FLUTTER_TEST')) {
+      path = inMemoryDatabasePath;
+    } else {
+      final documentsDirectory = await getApplicationDocumentsDirectory();
+      path = join(documentsDirectory.path, 'nifexo.db');
+    }
 
     return await openDatabase(
       path,
@@ -57,6 +62,7 @@ class AppDatabase {
         isArchived INTEGER NOT NULL DEFAULT 0,
         priority INTEGER NOT NULL,
         dueDate TEXT,
+        reminderAt TEXT,
         tags TEXT NOT NULL,
         linkedNoteId TEXT,
         createdAt TEXT NOT NULL,

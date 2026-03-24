@@ -7,6 +7,9 @@ class MarkdownInlineNode {
     this.isInlineCode = false,
     this.isInlineMath = false,
     this.linkUrl,
+    this.imageUrl,
+    this.leadingMarker = '',
+    this.trailingMarker = '',
   });
 
   final String text;
@@ -16,6 +19,11 @@ class MarkdownInlineNode {
   final bool isInlineCode;
   final bool isInlineMath;
   final String? linkUrl;
+  final String? imageUrl;
+  final String leadingMarker;
+  final String trailingMarker;
+
+  String get fullText => '$leadingMarker$text$trailingMarker';
 }
 
 class MarkdownInlineParser {
@@ -43,6 +51,8 @@ class MarkdownInlineParser {
               text: text.substring(index + 3, end),
               isBold: true,
               isItalic: true,
+              leadingMarker: '***',
+              trailingMarker: '***',
             ),
           );
           index = end + 3;
@@ -58,6 +68,8 @@ class MarkdownInlineParser {
             MarkdownInlineNode(
               text: text.substring(index + 2, end),
               isBold: true,
+              leadingMarker: '**',
+              trailingMarker: '**',
             ),
           );
           index = end + 2;
@@ -73,6 +85,8 @@ class MarkdownInlineParser {
             MarkdownInlineNode(
               text: text.substring(index + 2, end),
               isStrikethrough: true,
+              leadingMarker: '~~',
+              trailingMarker: '~~',
             ),
           );
           index = end + 2;
@@ -88,6 +102,8 @@ class MarkdownInlineParser {
             MarkdownInlineNode(
               text: text.substring(index + 1, end),
               isItalic: true,
+              leadingMarker: '_',
+              trailingMarker: '_',
             ),
           );
           index = end + 1;
@@ -117,6 +133,8 @@ class MarkdownInlineParser {
             MarkdownInlineNode(
               text: text.substring(index + 1, end),
               isItalic: true,
+              leadingMarker: '*',
+              trailingMarker: '*',
             ),
           );
           index = end + 1;
@@ -132,6 +150,8 @@ class MarkdownInlineParser {
             MarkdownInlineNode(
               text: text.substring(index + 1, end),
               isInlineCode: true,
+              leadingMarker: '`',
+              trailingMarker: '`',
             ),
           );
           index = end + 1;
@@ -147,9 +167,30 @@ class MarkdownInlineParser {
             MarkdownInlineNode(
               text: text.substring(index + 1, end),
               isInlineMath: true,
+              leadingMarker: r'$',
+              trailingMarker: r'$',
             ),
           );
           index = end + 1;
+          continue;
+        }
+      }
+
+      if (text[index] == '!' && index + 1 < text.length && text[index + 1] == '[') {
+        final closeBracket = text.indexOf(']', index + 2);
+        final openParen = closeBracket == -1 ? -1 : text.indexOf('(', closeBracket);
+        final closeParen = openParen == -1 ? -1 : text.indexOf(')', openParen);
+        if (closeBracket != -1 && openParen == closeBracket + 1 && closeParen != -1) {
+          flush();
+          nodes.add(
+            MarkdownInlineNode(
+              text: text.substring(index + 2, closeBracket),
+              imageUrl: text.substring(openParen + 1, closeParen),
+              leadingMarker: '![',
+              trailingMarker: '](${text.substring(openParen + 1, closeParen)})',
+            ),
+          );
+          index = closeParen + 1;
           continue;
         }
       }
@@ -168,6 +209,8 @@ class MarkdownInlineParser {
             MarkdownInlineNode(
               text: text.substring(index + 1, closeBracket),
               linkUrl: text.substring(openParen + 1, closeParen),
+              leadingMarker: '[',
+              trailingMarker: '](${text.substring(openParen + 1, closeParen)})',
             ),
           );
           index = closeParen + 1;

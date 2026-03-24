@@ -12,6 +12,7 @@ import 'theme.dart';
 import '../core/repositories/note_repository.dart';
 import '../core/repositories/todo_repository.dart';
 import '../core/repositories/settings_repository.dart';
+import '../core/services/notification_service.dart';
 
 class NifexoApp extends StatefulWidget {
   const NifexoApp({super.key});
@@ -31,11 +32,15 @@ class _NifexoAppState extends State<NifexoApp> {
   }
 
   Future<void> _loadSettings() async {
-    final themeMode = await _settingsRepository.getSetting('themeMode');
-    if (themeMode != null) {
-      setState(() {
-        _themeMode = themeMode == 'dark' ? ThemeMode.dark : ThemeMode.light;
-      });
+    try {
+      final themeMode = await _settingsRepository.getSetting('themeMode');
+      if (themeMode != null && mounted) {
+        setState(() {
+          _themeMode = themeMode == 'dark' ? ThemeMode.dark : ThemeMode.light;
+        });
+      }
+    } catch (e) {
+      debugPrint('Failed to load settings: $e');
     }
   }
 
@@ -90,12 +95,75 @@ class _AlphaShellState extends State<AlphaShell> {
   }
 
   Future<void> _loadData() async {
-    final notes = await _noteRepository.getAllNotes();
-    final todos = await _todoRepository.getAllTodos();
-    setState(() {
-      _notes = notes;
-      _todos = todos;
-    });
+    try {
+      var notes = await _noteRepository.getAllNotes();
+      final todos = await _todoRepository.getAllTodos();
+
+      if (notes.isEmpty) {
+        await _insertExampleNote();
+        notes = await _noteRepository.getAllNotes();
+      }
+
+      if (mounted) {
+        setState(() {
+          _notes = notes;
+          _todos = todos;
+        });
+      }
+    } catch (e) {
+      debugPrint('Failed to load data: $e');
+    }
+  }
+
+  Future<void> _insertExampleNote() async {
+    final now = DateTime.now();
+    final exampleNote = Note(
+      id: 'welcome-note',
+      title: 'Welcome to Nifexo! 🚀',
+      contentMd: '''
+# Discover Markdown Power
+
+Nifexo supports rich markdown rendering, including **maths and stuff**.
+
+## 1. LaTeX Math Rendering
+Display complex formulas beautifully:
+
+**Block Math:**
+\$\$
+x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}
+\$\$
+
+**Inline Math:** The area of a circle is \$A = \\pi r^2\$.
+
+## 2. Advanced Lists
+- Nested items are supported:
+  - Sub-item 1
+  - Sub-item 2
+    - Even deeper!
+- Checklist support:
+  - [x] High-performance persistence
+  - [x] LaTeX rendering
+  - [ ] Cloud sync (coming soon)
+
+## 3. Tables
+| Feature | Status |
+| :--- | :--- |
+| Persistence | ✅ Done |
+| Math | ✅ Done |
+| Export | ✅ Done |
+
+## 4. Images
+![Nifexo Logo](https://raw.githubusercontent.com/flutter/website/master/src/assets/images/shared/brand/flutter/logo/flutter-lockup.png)
+
+---
+*Happy writing!*
+''',
+      tags: ['welcome', 'guide'],
+      createdAt: now,
+      updatedAt: now,
+      isPinned: true,
+    );
+    await _noteRepository.insertNote(exampleNote);
   }
 
   Future<void> _createNote(NoteDraft draft) async {
@@ -159,9 +227,13 @@ class _AlphaShellState extends State<AlphaShell> {
       createdAt: now,
       updatedAt: now,
       dueDate: draft.dueDate,
+      reminderAt: draft.reminderAt,
       priority: draft.priority,
     );
     await _todoRepository.insertTodo(todo);
+    if (todo.reminderAt != null) {
+      await NotificationService().scheduleTodoReminder(todo);
+    }
     await _loadData();
   }
 
@@ -173,11 +245,19 @@ class _AlphaShellState extends State<AlphaShell> {
       title: draft.title.trim(),
       description: draft.description.trim(),
       dueDate: draft.dueDate,
+      reminderAt: draft.reminderAt,
       tags: draft.tags,
       priority: draft.priority,
       updatedAt: DateTime.now(),
     );
     await _todoRepository.updateTodo(updatedTodo);
+    
+    // Update notification
+    await NotificationService().cancelTodoReminder(todoId);
+    if (updatedTodo.reminderAt != null && !updatedTodo.isDone) {
+      await NotificationService().scheduleTodoReminder(updatedTodo);
+    }
+    
     await _loadData();
   }
 
@@ -190,10 +270,18 @@ class _AlphaShellState extends State<AlphaShell> {
       updatedAt: DateTime.now(),
     );
     await _todoRepository.updateTodo(updatedTodo);
+    
+    if (isDone) {
+      await NotificationService().cancelTodoReminder(todoId);
+    } else if (updatedTodo.reminderAt != null) {
+      await NotificationService().scheduleTodoReminder(updatedTodo);
+    }
+    
     await _loadData();
   }
 
   Future<void> _deleteTodo(String todoId) async {
+    await NotificationService().cancelTodoReminder(todoId);
     await _todoRepository.deleteTodo(todoId);
     await _loadData();
   }

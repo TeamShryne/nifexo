@@ -1,7 +1,8 @@
 import 'package:flutter/gestures.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_math_fork/flutter_math.dart';
 
 import 'markdown_block.dart';
 import 'markdown_inline_parser.dart';
@@ -165,9 +166,15 @@ class _MarkdownBlockView extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            for (final item in block.items)
+            for (var i = 0; i < block.items.length; i++)
               Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+                padding: EdgeInsets.only(
+                  bottom: 8,
+                  left: (block.indentations.isNotEmpty
+                          ? block.indentations[i]
+                          : 0) *
+                      8.0,
+                ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -189,7 +196,7 @@ class _MarkdownBlockView extends StatelessWidget {
                     Expanded(
                       child: _richLine(
                         context,
-                        item,
+                        block.items[i],
                         theme.textTheme.bodyLarge?.copyWith(height: 1.7),
                       ),
                     ),
@@ -204,7 +211,13 @@ class _MarkdownBlockView extends StatelessWidget {
           children: [
             for (var i = 0; i < block.items.length; i++)
               Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+                padding: EdgeInsets.only(
+                  bottom: 8,
+                  left: (block.indentations.isNotEmpty
+                          ? block.indentations[i]
+                          : 0) *
+                      8.0,
+                ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -235,7 +248,13 @@ class _MarkdownBlockView extends StatelessWidget {
           children: [
             for (var i = 0; i < block.items.length; i++)
               Padding(
-                padding: const EdgeInsets.only(bottom: 10),
+                padding: EdgeInsets.only(
+                  bottom: 10,
+                  left: (block.indentations.isNotEmpty
+                          ? block.indentations[i]
+                          : 0) *
+                      8.0,
+                ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -290,17 +309,16 @@ class _MarkdownBlockView extends StatelessWidget {
       case MarkdownBlockType.mathBlock:
         return Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: theme.colorScheme.surfaceContainerLow,
             borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: theme.colorScheme.outlineVariant),
           ),
-          child: Text(
+          child: Math.tex(
             block.text,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontFamily: 'monospace',
-              fontStyle: FontStyle.italic,
-            ),
+            textStyle: theme.textTheme.titleMedium,
+            mathStyle: MathStyle.display,
           ),
         );
       case MarkdownBlockType.table:
@@ -347,26 +365,70 @@ class _MarkdownBlockView extends StatelessWidget {
   ) {
     final theme = Theme.of(context);
     final nodes = inlineParser.parse(text);
-    return nodes
-        .map(
-          (node) => TextSpan(
-            text: node.text,
-            style: _nodeStyle(theme, baseStyle, node),
-            recognizer: node.linkUrl == null
-                ? null
-                : (TapGestureRecognizer()
-                    ..onTap = () async {
-                      final uri = Uri.tryParse(node.linkUrl!);
-                      if (uri != null) {
-                        await launchUrl(
-                          uri,
-                          mode: LaunchMode.externalApplication,
-                        );
-                      }
-                    }),
+    return nodes.map((node) {
+      if (node.isInlineMath) {
+        return WidgetSpan(
+          alignment: PlaceholderAlignment.middle,
+          child: Math.tex(
+            node.text,
+            textStyle: baseStyle?.copyWith(
+              fontSize: (baseStyle.fontSize ?? 16) * 1.1,
+            ),
           ),
-        )
-        .toList();
+        );
+      }
+
+      if (node.imageUrl != null) {
+        return WidgetSpan(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.network(
+                node.imageUrl!,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.broken_image_outlined,
+                            color: theme.colorScheme.error),
+                        const SizedBox(width: 8),
+                        Text('Failed to load image',
+                            style: TextStyle(color: theme.colorScheme.error)),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      }
+
+      return TextSpan(
+        text: node.text,
+        style: _nodeStyle(theme, baseStyle, node),
+        recognizer: node.linkUrl == null
+            ? null
+            : (TapGestureRecognizer()
+                ..onTap = () async {
+                  final uri = Uri.tryParse(node.linkUrl!);
+                  if (uri != null) {
+                    await launchUrl(
+                      uri,
+                      mode: LaunchMode.externalApplication,
+                    );
+                  }
+                }),
+      );
+    }).toList();
   }
 
   TextStyle? _nodeStyle(
@@ -376,22 +438,16 @@ class _MarkdownBlockView extends StatelessWidget {
   ) {
     return baseStyle?.copyWith(
       fontWeight: node.isBold ? FontWeight.w700 : baseStyle.fontWeight,
-      fontStyle: node.isItalic || node.isInlineMath
-          ? FontStyle.italic
-          : baseStyle.fontStyle,
+      fontStyle: node.isItalic ? FontStyle.italic : baseStyle.fontStyle,
       decoration: node.isStrikethrough || node.linkUrl != null
           ? (node.isStrikethrough
                 ? TextDecoration.lineThrough
                 : TextDecoration.underline)
           : baseStyle.decoration,
       color: node.linkUrl != null ? theme.colorScheme.primary : baseStyle.color,
-      fontFamily: node.isInlineCode || node.isInlineMath
-          ? 'monospace'
-          : baseStyle.fontFamily,
+      fontFamily: node.isInlineCode ? 'monospace' : baseStyle.fontFamily,
       backgroundColor: node.isInlineCode
           ? theme.colorScheme.surfaceContainerHighest
-          : node.isInlineMath
-          ? theme.colorScheme.surfaceContainerLow
           : baseStyle.backgroundColor,
     );
   }

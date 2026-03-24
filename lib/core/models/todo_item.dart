@@ -13,6 +13,7 @@ class TodoItem {
     this.isArchived = false,
     this.priority = TodoPriority.medium,
     this.dueDate,
+    this.reminderAt,
     this.linkedNoteId,
   });
 
@@ -24,6 +25,7 @@ class TodoItem {
   final bool isArchived;
   final TodoPriority priority;
   final DateTime? dueDate;
+  final DateTime? reminderAt;
   final List<String> tags;
   final String? linkedNoteId;
   final DateTime createdAt;
@@ -38,6 +40,7 @@ class TodoItem {
     bool? isArchived,
     TodoPriority? priority,
     DateTime? dueDate,
+    DateTime? reminderAt,
     List<String>? tags,
     String? linkedNoteId,
     DateTime? createdAt,
@@ -52,6 +55,7 @@ class TodoItem {
       isArchived: isArchived ?? this.isArchived,
       priority: priority ?? this.priority,
       dueDate: dueDate ?? this.dueDate,
+      reminderAt: reminderAt ?? this.reminderAt,
       tags: tags ?? this.tags,
       linkedNoteId: linkedNoteId ?? this.linkedNoteId,
       createdAt: createdAt ?? this.createdAt,

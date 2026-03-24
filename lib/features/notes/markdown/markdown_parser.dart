@@ -116,14 +116,17 @@ class MarkdownParser {
       if (_isChecklistLine(trimmed)) {
         final items = <String>[];
         final checked = <bool>[];
+        final indents = <int>[];
         while (index < lines.length &&
-            _isChecklistLine(lines[index].trim())) {
-          final current = lines[index].trim();
+            _isChecklistLine(lines[index].trimLeft())) {
+          final current = lines[index].trimLeft();
+          final indentation = lines[index].length - lines[index].trimLeft().length;
           final markerLength = _checklistMarkerLength(current);
           checked.add(
             current.contains('[x] ') || current.contains('[X] '),
           );
           items.add(current.substring(markerLength).trim());
+          indents.add(indentation);
           index++;
         }
         blocks.add(
@@ -131,6 +134,7 @@ class MarkdownParser {
             type: MarkdownBlockType.checklist,
             items: items,
             checkedItems: checked,
+            indentations: indents,
           ),
         );
         continue;
@@ -138,28 +142,42 @@ class MarkdownParser {
 
       if (_isUnorderedListLine(trimmed)) {
         final items = <String>[];
+        final indents = <int>[];
         while (index < lines.length &&
-            _isUnorderedListLine(lines[index].trim())) {
-          items.add(lines[index].trim().substring(2).trim());
+            _isUnorderedListLine(lines[index].trimLeft())) {
+          final indentation = lines[index].length - lines[index].trimLeft().length;
+          items.add(lines[index].trimLeft().substring(2).trim());
+          indents.add(indentation);
           index++;
         }
         blocks.add(
-          MarkdownBlock(type: MarkdownBlockType.bulletList, items: items),
+          MarkdownBlock(
+            type: MarkdownBlockType.bulletList,
+            items: items,
+            indentations: indents,
+          ),
         );
         continue;
       }
 
       if (_isNumberedListLine(trimmed)) {
         final items = <String>[];
+        final indents = <int>[];
         while (index < lines.length &&
-            _isNumberedListLine(lines[index].trim())) {
-          final current = lines[index].trim();
+            _isNumberedListLine(lines[index].trimLeft())) {
+          final current = lines[index].trimLeft();
+          final indentation = lines[index].length - lines[index].trimLeft().length;
           final dotIndex = current.indexOf('.');
           items.add(current.substring(dotIndex + 1).trim());
+          indents.add(indentation);
           index++;
         }
         blocks.add(
-          MarkdownBlock(type: MarkdownBlockType.numberedList, items: items),
+          MarkdownBlock(
+            type: MarkdownBlockType.numberedList,
+            items: items,
+            indentations: indents,
+          ),
         );
         continue;
       }
